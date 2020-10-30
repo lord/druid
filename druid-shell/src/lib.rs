@@ -56,6 +56,7 @@ mod platform;
 mod region;
 mod scale;
 mod screen;
+mod text_input;
 mod window;
 
 pub use crate::image::ImageBuf;
@@ -75,5 +76,6 @@ pub use window::{
     FileDialogToken, IdleHandle, IdleToken, TimerToken, WinHandler, WindowBuilder, WindowHandle,
     WindowLevel, WindowState,
 };
+pub use text_input::{TextInputToken, TextInputHandler};
 
 pub use keyboard_types;

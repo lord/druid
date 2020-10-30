@@ -1689,6 +1689,18 @@ impl WindowHandle {
         PietText::new(self.dwrite_factory.clone())
     }
 
+    pub fn add_text_field(&self) -> TextInputToken {
+        unimplemented!()
+    }
+
+    pub fn remove_text_field(&self, token: &TextInputToken) {
+        unimplemented!()
+    }
+
+    pub fn set_active_text_field(&self, active_field: Option<&TextInputToken>) {
+        unimplemented!()
+    }
+
     /// Request a timer event.
     ///
     /// The return value is an identifier.

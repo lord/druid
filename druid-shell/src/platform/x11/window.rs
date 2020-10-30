@@ -1478,6 +1478,18 @@ impl WindowHandle {
         PietText::new()
     }
 
+    pub fn add_text_field(&self) -> TextInputToken {
+        unimplemented!()
+    }
+
+    pub fn remove_text_field(&self, token: &TextInputToken) {
+        unimplemented!()
+    }
+
+    pub fn set_active_text_field(&self, active_field: Option<&TextInputToken>) {
+        unimplemented!()
+    }
+
     pub fn request_timer(&self, deadline: Instant) -> TimerToken {
         if let Some(w) = self.window.upgrade() {
             let timer = Timer::new(deadline);

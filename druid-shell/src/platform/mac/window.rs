@@ -57,6 +57,7 @@ use crate::keyboard_types::KeyState;
 use crate::mouse::{Cursor, CursorDesc, MouseButton, MouseButtons, MouseEvent};
 use crate::region::Region;
 use crate::scale::Scale;
+use crate::text_input::{TextInputToken, simulate_text_input};
 use crate::window::{FileDialogToken, IdleToken, TimerToken, WinHandler, WindowLevel, WindowState};
 use crate::Error;
 
@@ -683,7 +684,7 @@ extern "C" fn key_down(this: &mut Object, _: Sel, nsevent: id) {
         &mut *(view_state as *mut ViewState)
     };
     if let Some(event) = (*view_state).keyboard_state.process_native_event(nsevent) {
-        (*view_state).handler.key_down(event);
+        simulate_text_input(&mut *(*view_state).handler, None, event);
     }
 }
 
@@ -932,6 +933,18 @@ impl WindowHandle {
                 PietText::new_with_unique_state()
             }
         }
+    }
+
+    pub fn add_text_field(&self) -> TextInputToken {
+        unimplemented!()
+    }
+
+    pub fn remove_text_field(&self, token: &TextInputToken) {
+        unimplemented!()
+    }
+
+    pub fn set_active_text_field(&self, active_field: Option<&TextInputToken>) {
+        unimplemented!()
     }
 
     pub fn open_file(&mut self, options: FileDialogOptions) -> Option<FileDialogToken> {
