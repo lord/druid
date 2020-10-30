@@ -329,12 +329,12 @@ impl WindowHandle {
     }
 
     /// TODO
-    pub fn remove_text_field(&self, token: &TextInputToken) {
+    pub fn remove_text_field(&self, token: TextInputToken) {
         self.0.remove_text_field(token)
     }
 
     /// TODO
-    pub fn set_active_text_field(&self, active_field: Option<&TextInputToken>) {
+    pub fn set_active_text_field(&self, active_field: Option<TextInputToken>) {
         self.0.set_active_text_field(active_field)
     }
 

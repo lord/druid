@@ -13,13 +13,14 @@
 // limitations under the License.
 
 use std::any::Any;
+use std::ops::Range;
 
 use druid_shell::kurbo::{Line, Size};
 use druid_shell::piet::{Color, RenderContext};
 
 use druid_shell::{
     Application, Cursor, FileDialogOptions, FileDialogToken, FileInfo, FileSpec, HotKey, KeyEvent,
-    Menu, MouseEvent, Region, SysMods, TimerToken, WinHandler, WindowBuilder, WindowHandle,
+    Menu, MouseEvent, Region, SysMods, TimerToken, WinHandler, WindowBuilder, WindowHandle, TextInputToken, TextInputHandler,
 };
 
 const BG_COLOR: Color = Color::rgb8(0x27, 0x28, 0x22);
@@ -34,6 +35,7 @@ struct HelloState {
 impl WinHandler for HelloState {
     fn connect(&mut self, handle: &WindowHandle) {
         self.handle = handle.clone();
+        self.handle.add_text_field();
     }
 
     fn prepare_paint(&mut self) {}
@@ -75,6 +77,11 @@ impl WinHandler for HelloState {
         println!("keyup: {:?}", event);
     }
 
+    fn text_input(&mut self, token: TextInputToken, mutable: bool) -> Option<Box<dyn TextInputHandler>> {
+        println!("text_input: {:?} (mutable: {:?})", token, mutable);
+        Some(Box::new(DummyTextInputHandler{}))
+    }
+
     fn wheel(&mut self, event: &MouseEvent) {
         println!("mouse_wheel {:?}", event);
     }
@@ -110,6 +117,42 @@ impl WinHandler for HelloState {
 
     fn as_any(&mut self) -> &mut dyn Any {
         self
+    }
+}
+
+struct DummyTextInputHandler {
+}
+
+impl TextInputHandler for DummyTextInputHandler {
+    fn selected_range(&mut self) -> Range<usize> {
+        println!("  text input - selected_range");
+        0..1
+    }
+    fn set_selected_range(&mut self, range: Range<usize>) {
+        println!("  text input - set_selected_range: {:?}", range);
+    }
+    fn set_composition_range(&mut self, range: Option<Range<usize>>) {
+        println!("  text input - set_composition_range: {:?}", range);
+    }
+    fn replace(&mut self, range: Range<usize>, text: &str) {
+        println!("  text input - replace: {:?} {:?}", range, text);
+    }
+    fn slice(&mut self, range: Range<usize>) -> String {
+        println!("  text input - slice: {:?}", range);
+        let mut s = "".to_string();
+        for _ in range {
+            s += "a";
+        }
+        s
+    }
+    fn floor_index(&mut self, i: usize) -> usize {
+        i
+    }
+    fn ceil_index(&mut self, i: usize) -> usize {
+        i
+    }
+    fn len(&mut self) -> usize {
+        10
     }
 }
 

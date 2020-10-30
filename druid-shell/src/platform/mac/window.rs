@@ -145,6 +145,7 @@ struct ViewState {
     mouse_left: bool,
     keyboard_state: KeyboardState,
     text: PietText,
+    active_text_field: Option<TextInputToken>,
 }
 
 #[derive(Clone)]
@@ -439,6 +440,7 @@ fn make_view(handler: Box<dyn WinHandler>) -> (id, Weak<Mutex<Vec<IdleKind>>>) {
             mouse_left: true,
             keyboard_state,
             text: PietText::new_with_unique_state(),
+            active_text_field: None,
         };
         let state_ptr = Box::into_raw(Box::new(state));
         (*view).set_ivar("viewState", state_ptr as *mut c_void);
@@ -684,7 +686,7 @@ extern "C" fn key_down(this: &mut Object, _: Sel, nsevent: id) {
         &mut *(view_state as *mut ViewState)
     };
     if let Some(event) = (*view_state).keyboard_state.process_native_event(nsevent) {
-        simulate_text_input(&mut *(*view_state).handler, None, event);
+        simulate_text_input(&mut *(*view_state).handler, view_state.active_text_field, event);
     }
 }
 
@@ -936,15 +938,34 @@ impl WindowHandle {
     }
 
     pub fn add_text_field(&self) -> TextInputToken {
-        unimplemented!()
+        let next_token = TextInputToken::next();
+        let mut state = unsafe {
+            let view = self.nsview.load().as_ref().unwrap();
+            let state: *mut c_void = *view.get_ivar("viewState");
+            &mut (*(state as *mut ViewState))
+        };
+        state.active_text_field = Some(next_token);
+        next_token
     }
 
-    pub fn remove_text_field(&self, token: &TextInputToken) {
-        unimplemented!()
+    pub fn remove_text_field(&self, token: TextInputToken) {
+        let mut state = unsafe {
+            let view = self.nsview.load().as_ref().unwrap();
+            let state: *mut c_void = *view.get_ivar("viewState");
+            &mut (*(state as *mut ViewState))
+        };
+        if state.active_text_field == Some(token) {
+            state.active_text_field = None;
+        }
     }
 
-    pub fn set_active_text_field(&self, active_field: Option<&TextInputToken>) {
-        unimplemented!()
+    pub fn set_active_text_field(&self, active_field: Option<TextInputToken>) {
+        let mut state = unsafe {
+            let view = self.nsview.load().as_ref().unwrap();
+            let state: *mut c_void = *view.get_ivar("viewState");
+            &mut (*(state as *mut ViewState))
+        };
+        state.active_text_field = active_field;
     }
 
     pub fn open_file(&mut self, options: FileDialogOptions) -> Option<FileDialogToken> {
