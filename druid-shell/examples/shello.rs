@@ -14,6 +14,7 @@
 
 use std::any::Any;
 use std::ops::Range;
+use std::borrow::Cow;
 
 use druid_shell::kurbo::{Line, Size};
 use druid_shell::piet::{Color, RenderContext};
@@ -137,13 +138,13 @@ impl TextInputHandler for DummyTextInputHandler {
     fn replace(&mut self, range: Range<usize>, text: &str) {
         println!("  text input - replace: {:?} {:?}", range, text);
     }
-    fn slice(&mut self, range: Range<usize>) -> String {
+    fn slice<'a>(&'a mut self, range: Range<usize>) -> Cow<'a, str> {
         println!("  text input - slice: {:?}", range);
         let mut s = "".to_string();
         for _ in range {
             s += "a";
         }
-        s
+        s.into()
     }
     fn floor_index(&mut self, i: usize) -> usize {
         i

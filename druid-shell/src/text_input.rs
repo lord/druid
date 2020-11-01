@@ -1,4 +1,5 @@
 use std::ops::Range;
+use std::borrow::Cow;
 use crate::common_util::Counter;
 use crate::window::WinHandler;
 use crate::keyboard::{KbKey, KeyEvent};
@@ -35,7 +36,7 @@ pub trait TextInputHandler {
     fn set_selected_range(&mut self, range: Range<usize>);
     fn set_composition_range(&mut self, range: Option<Range<usize>>);
     fn replace(&mut self, range: Range<usize>, text: &str);
-    fn slice(&mut self, range: Range<usize>) -> String;
+    fn slice<'a>(&'a mut self, range: Range<usize>) -> Cow<'a, str>;
     fn floor_index(&mut self, i: usize) -> usize;
     fn ceil_index(&mut self, i: usize) -> usize;
     fn len(&mut self) -> usize;
