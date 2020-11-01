@@ -16,20 +16,23 @@
 
 #![allow(non_snake_case)]
 
-use std::any::Any;
+use std::{any::Any, os::raw::c_uchar};
 use std::ffi::c_void;
 use std::mem;
 use std::sync::{Arc, Mutex, Weak};
 use std::time::Instant;
 
 use block::ConcreteBlock;
-use cocoa::appkit::{
-    CGFloat, NSApp, NSApplication, NSAutoresizingMaskOptions, NSBackingStoreBuffered, NSEvent,
-    NSView, NSViewHeightSizable, NSViewWidthSizable, NSWindow, NSWindowStyleMask,
-};
 use cocoa::base::{id, nil, BOOL, NO, YES};
 use cocoa::foundation::{
-    NSAutoreleasePool, NSInteger, NSPoint, NSRect, NSSize, NSString, NSUInteger,
+    NSAutoreleasePool, NSInteger, NSPoint, NSRect, NSSize, NSString, NSUInteger, NSArray
+};
+use cocoa::{
+    appkit::{
+        CGFloat, NSApp, NSApplication, NSAutoresizingMaskOptions, NSBackingStoreBuffered, NSEvent,
+        NSView, NSViewHeightSizable, NSViewWidthSizable, NSWindow, NSWindowStyleMask,
+    },
+    foundation::NSNotFound,
 };
 use core_graphics::context::CGContextRef;
 use foreign_types::ForeignTypeRef;
@@ -37,7 +40,7 @@ use lazy_static::lazy_static;
 use log::{error, info};
 use objc::declare::ClassDecl;
 use objc::rc::WeakPtr;
-use objc::runtime::{Class, Object, Sel};
+use objc::runtime::{Class, Object, Protocol, Sel};
 use objc::{class, msg_send, sel, sel_impl};
 
 use crate::kurbo::{Point, Rect, Size, Vec2};
@@ -57,7 +60,7 @@ use crate::keyboard_types::KeyState;
 use crate::mouse::{Cursor, CursorDesc, MouseButton, MouseButtons, MouseEvent};
 use crate::region::Region;
 use crate::scale::Scale;
-use crate::text_input::{TextInputToken, simulate_text_input};
+use crate::text_input::{simulate_text_input, TextInputToken};
 use crate::window::{FileDialogToken, IdleToken, TimerToken, WinHandler, WindowLevel, WindowState};
 use crate::Error;
 
@@ -88,6 +91,31 @@ mod levels {
             DropDown => NSFloatingWindowLevel,
             Modal => NSModalPanelWindowLevel,
         }
+    }
+}
+
+#[repr(C)]
+pub struct NSRange {
+    pub location: NSUInteger,
+    pub length: NSUInteger,
+}
+
+impl NSRange {
+    #[inline]
+    pub fn new(location: NSUInteger, length: NSUInteger) -> NSRange {
+        NSRange { location, length }
+    }
+}
+
+unsafe impl objc::Encode for NSRange {
+    fn encode() -> objc::Encoding {
+        let encoding = format!(
+            // TODO: Verify that this is correct
+            "{{NSRange={}{}}}",
+            NSUInteger::encode().as_str(),
+            NSUInteger::encode().as_str(),
+        );
+        unsafe { objc::Encoding::from_str(&encoding) }
     }
 }
 
@@ -421,6 +449,49 @@ lazy_static! {
             sel!(windowWillClose:),
             window_will_close as extern "C" fn(&mut Object, Sel, id),
         );
+
+        // methods for NSTextInputClient
+        decl.add_method(sel!(hasMarkedText), has_marked_text as extern fn(&mut Object, Sel) -> BOOL);
+        decl.add_method(
+            sel!(markedRange),
+            marked_range as extern fn(&mut Object, Sel) -> NSRange,
+        );
+        decl.add_method(sel!(selectedRange), selected_range as extern fn(&mut Object, Sel) -> NSRange);
+        decl.add_method(
+            sel!(setMarkedText:selectedRange:replacementRange:),
+            set_marked_text as extern fn(&mut Object, Sel, id, NSRange, NSRange),
+        );
+        decl.add_method(sel!(unmarkText), unmark_text as extern fn(&mut Object, Sel));
+        decl.add_method(
+            sel!(validAttributesForMarkedText),
+            valid_attributes_for_marked_text as extern fn(&mut Object, Sel) -> id,
+        );
+        decl.add_method(
+            sel!(attributedSubstringForProposedRange:actualRange:),
+            attributed_substring_for_proposed_range
+                as extern fn(&mut Object, Sel, NSRange, *mut c_void) -> id,
+        );
+        decl.add_method(
+            sel!(insertText:replacementRange:),
+            insert_text as extern fn(&mut Object, Sel, id, NSRange),
+        );
+        decl.add_method(
+            sel!(characterIndexForPoint:),
+            character_index_for_point as extern fn(&mut Object, Sel, NSPoint) -> NSUInteger,
+        );
+        decl.add_method(
+            sel!(firstRectForCharacterRange:actualRange:),
+            first_rect_for_character_range
+                as extern fn(&mut Object, Sel, NSRange, *mut c_void) -> NSRect,
+        );
+        decl.add_method(
+            sel!(doCommandBySelector:),
+            do_command_by_selector as extern fn(&mut Object, Sel, Sel),
+        );
+
+        let protocol = Protocol::get("NSTextInputClient").unwrap();
+        decl.add_protocol(&protocol);
+
         ViewClass(decl.register())
     };
 }
@@ -686,7 +757,13 @@ extern "C" fn key_down(this: &mut Object, _: Sel, nsevent: id) {
         &mut *(view_state as *mut ViewState)
     };
     if let Some(event) = (*view_state).keyboard_state.process_native_event(nsevent) {
-        simulate_text_input(&mut *(*view_state).handler, view_state.active_text_field, event);
+        if !(*view_state).handler.key_down(event.clone()) {
+            // key down not handled; foward to text input system
+            unsafe {
+                let events = NSArray::arrayWithObjects(nil, &[nsevent]);
+                let _: () = unsafe {msg_send![*(*view_state).nsview.load(), interpretKeyEvents:events]};
+            }
+        }
     }
 }
 
@@ -824,6 +901,117 @@ extern "C" fn window_will_close(this: &mut Object, _: Sel, _window: id) {
         let view_state = &mut *(view_state as *mut ViewState);
         (*view_state).handler.destroy();
     }
+}
+
+extern "C" fn has_marked_text(this: &mut Object, _: Sel) -> BOOL {
+    println!(">> has_marked_text");
+    // TODO
+    NO
+}
+
+extern "C" fn marked_range(this: &mut Object, _: Sel) -> NSRange {
+    println!(">> marked_range");
+    // TODO
+    NSRange::new(NSNotFound as NSUInteger, 0)
+}
+
+extern "C" fn selected_range(this: &mut Object, _: Sel) -> NSRange {
+    println!(">> selected_range");
+    let view_state = unsafe {
+        let view_state: *mut c_void = *this.get_ivar("viewState");
+        let view_state = &mut *(view_state as *mut ViewState);
+        &mut (*view_state)
+    };
+    let active_text_field = match view_state.active_text_field {
+        Some(v) => v,
+        None => return NSRange::new(NSNotFound as NSUInteger, 0),
+    };
+    let mut edit_lock = match view_state.handler.text_input(active_text_field, false) {
+        Some(v) => v,
+        None => return NSRange::new(NSNotFound as NSUInteger, 0),
+    };
+    let range = edit_lock.selected_range();
+    // TODO convert utf8 -> utf16
+    NSRange::new(range.start as u64, range.end as u64)
+}
+
+extern "C" fn set_marked_text(
+    this: &mut Object,
+    _: Sel,
+    insert_string: id,
+    selected_range: NSRange,
+    replacement_range: NSRange,
+) {
+    println!(">> set_marked_text");
+    // TODO
+}
+
+extern "C" fn unmark_text(this: &mut Object, _: Sel) {
+    println!(">> unmark_text");
+    // TODO
+}
+
+extern "C" fn valid_attributes_for_marked_text(this: &mut Object, _: Sel) -> id {
+    println!(">> valid_attributes_for_marked_text");
+    unsafe { NSArray::array(nil) }
+}
+
+extern "C" fn attributed_substring_for_proposed_range(
+    this: &mut Object,
+    _: Sel,
+    proposed_range: NSRange,
+    actual_range: *mut c_void,
+) -> id {
+    println!(">> attributed_substring_for_proposed_range");
+    nil
+}
+
+extern "C" fn insert_text(this: &mut Object, _: Sel, text: id, replacement_range: NSRange) {
+    let view_state = unsafe {
+        let view_state: *mut c_void = *this.get_ivar("viewState");
+        let view_state = &mut *(view_state as *mut ViewState);
+        &mut (*view_state)
+    };
+    let active_text_field = match view_state.active_text_field {
+        Some(v) => v,
+        None => return,
+    };
+    let mut edit_lock = match view_state.handler.text_input(active_text_field, false) {
+        Some(v) => v,
+        None => return,
+    };
+    let text_string = unsafe {
+        let nsstring = if msg_send![text, isKindOfClass:class!(NSAttributedString)] {
+            msg_send![text, string]
+        } else {
+            // already a NSString
+            text
+        };
+        let slice = std::slice::from_raw_parts(
+            nsstring.UTF8String() as *const c_uchar,
+            nsstring.len(),
+        );
+        std::str::from_utf8_unchecked(slice)
+    };
+    edit_lock.replace(replacement_range.location as usize..replacement_range.length as usize, text_string);
+}
+
+extern "C" fn character_index_for_point(this: &mut Object, _: Sel, point: NSPoint) -> NSUInteger {
+    // TODO
+    0
+}
+
+extern "C" fn first_rect_for_character_range(
+    this: &mut Object,
+    _: Sel,
+    character_range: NSRange,
+    actual_range: *mut c_void,
+) -> NSRect {
+    NSRect::new(NSPoint::new(0.0, 0.0), NSSize::new(0.0, 0.0))
+}
+
+extern "C" fn do_command_by_selector(this: &mut Object, _: Sel, _: Sel) {
+    // TODO
 }
 
 impl WindowHandle {
