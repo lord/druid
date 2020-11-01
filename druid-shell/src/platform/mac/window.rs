@@ -16,16 +16,16 @@
 
 #![allow(non_snake_case)]
 
-use std::{any::Any, os::raw::c_uchar};
 use std::ffi::c_void;
 use std::mem;
 use std::sync::{Arc, Mutex, Weak};
 use std::time::Instant;
+use std::{any::Any, os::raw::c_uchar};
 
 use block::ConcreteBlock;
 use cocoa::base::{id, nil, BOOL, NO, YES};
 use cocoa::foundation::{
-    NSAutoreleasePool, NSInteger, NSPoint, NSRect, NSSize, NSString, NSUInteger, NSArray
+    NSArray, NSAutoreleasePool, NSInteger, NSPoint, NSRect, NSSize, NSString, NSUInteger,
 };
 use cocoa::{
     appkit::{
@@ -761,7 +761,8 @@ extern "C" fn key_down(this: &mut Object, _: Sel, nsevent: id) {
             // key down not handled; foward to text input system
             unsafe {
                 let events = NSArray::arrayWithObjects(nil, &[nsevent]);
-                let _: () = unsafe {msg_send![*(*view_state).nsview.load(), interpretKeyEvents:events]};
+                let _: () =
+                    unsafe { msg_send![*(*view_state).nsview.load(), interpretKeyEvents: events] };
             }
         }
     }
@@ -976,24 +977,34 @@ extern "C" fn insert_text(this: &mut Object, _: Sel, text: id, replacement_range
         Some(v) => v,
         None => return,
     };
-    let mut edit_lock = match view_state.handler.text_input(active_text_field, false) {
+    let mut edit_lock = match view_state.handler.text_input(active_text_field, true) {
         Some(v) => v,
         None => return,
     };
     let text_string = unsafe {
-        let nsstring = if msg_send![text, isKindOfClass:class!(NSAttributedString)] {
+        let nsstring = if msg_send![text, isKindOfClass: class!(NSAttributedString)] {
             msg_send![text, string]
         } else {
             // already a NSString
             text
         };
-        let slice = std::slice::from_raw_parts(
-            nsstring.UTF8String() as *const c_uchar,
-            nsstring.len(),
-        );
+        let slice =
+            std::slice::from_raw_parts(nsstring.UTF8String() as *const c_uchar, nsstring.len());
         std::str::from_utf8_unchecked(slice)
     };
-    edit_lock.replace(replacement_range.location as usize..replacement_range.length as usize, text_string);
+    let fixed_range = if replacement_range.location as usize >= i32::max_value() as usize {
+        // yvt notes:
+        // This case is undocumented, but it seems that it means
+        // the whole marked text or selected text should be finalized
+        // and replaced with the given string.
+
+        // TODO try first to replace marked range before selected range
+        edit_lock.selected_range()
+    } else {
+        replacement_range.location as usize..replacement_range.length as usize
+    };
+
+    edit_lock.replace(fixed_range, text_string);
 }
 
 extern "C" fn character_index_for_point(this: &mut Object, _: Sel, point: NSPoint) -> NSUInteger {
