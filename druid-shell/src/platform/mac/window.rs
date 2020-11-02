@@ -173,7 +173,7 @@ struct ViewState {
     mouse_left: bool,
     keyboard_state: KeyboardState,
     text: PietText,
-    active_text_field: Option<TextInputToken>,
+    active_text_input: Option<TextInputToken>,
 }
 
 #[derive(Clone)]
@@ -511,7 +511,7 @@ fn make_view(handler: Box<dyn WinHandler>) -> (id, Weak<Mutex<Vec<IdleKind>>>) {
             mouse_left: true,
             keyboard_state,
             text: PietText::new_with_unique_state(),
-            active_text_field: None,
+            active_text_input: None,
         };
         let state_ptr = Box::into_raw(Box::new(state));
         (*view).set_ivar("viewState", state_ptr as *mut c_void);
@@ -923,11 +923,11 @@ extern "C" fn selected_range(this: &mut Object, _: Sel) -> NSRange {
         let view_state = &mut *(view_state as *mut ViewState);
         &mut (*view_state)
     };
-    let active_text_field = match view_state.active_text_field {
+    let active_text_input = match view_state.active_text_input {
         Some(v) => v,
         None => return NSRange::new(NSNotFound as NSUInteger, 0),
     };
-    let mut edit_lock = match view_state.handler.text_input(active_text_field, false) {
+    let mut edit_lock = match view_state.handler.text_input(active_text_input, false) {
         Some(v) => v,
         None => return NSRange::new(NSNotFound as NSUInteger, 0),
     };
@@ -973,11 +973,11 @@ extern "C" fn insert_text(this: &mut Object, _: Sel, text: id, replacement_range
         let view_state = &mut *(view_state as *mut ViewState);
         &mut (*view_state)
     };
-    let active_text_field = match view_state.active_text_field {
+    let active_text_input = match view_state.active_text_input {
         Some(v) => v,
         None => return,
     };
-    let mut edit_lock = match view_state.handler.text_input(active_text_field, true) {
+    let mut edit_lock = match view_state.handler.text_input(active_text_input, true) {
         Some(v) => v,
         None => return,
     };
@@ -1136,35 +1136,29 @@ impl WindowHandle {
         }
     }
 
-    pub fn add_text_field(&self) -> TextInputToken {
-        let next_token = TextInputToken::next();
-        let mut state = unsafe {
-            let view = self.nsview.load().as_ref().unwrap();
-            let state: *mut c_void = *view.get_ivar("viewState");
-            &mut (*(state as *mut ViewState))
-        };
-        state.active_text_field = Some(next_token);
-        next_token
+    pub fn add_text_input(&self) -> TextInputToken {
+        // TODO we should actually create a new subview i think
+        TextInputToken::next()
     }
 
-    pub fn remove_text_field(&self, token: TextInputToken) {
+    pub fn remove_text_input(&self, token: TextInputToken) {
         let mut state = unsafe {
             let view = self.nsview.load().as_ref().unwrap();
             let state: *mut c_void = *view.get_ivar("viewState");
             &mut (*(state as *mut ViewState))
         };
-        if state.active_text_field == Some(token) {
-            state.active_text_field = None;
+        if state.active_text_input == Some(token) {
+            state.active_text_input = None;
         }
     }
 
-    pub fn set_active_text_field(&self, active_field: Option<TextInputToken>) {
+    pub fn set_active_text_input(&self, active_field: Option<TextInputToken>) {
         let mut state = unsafe {
             let view = self.nsview.load().as_ref().unwrap();
             let state: *mut c_void = *view.get_ivar("viewState");
             &mut (*(state as *mut ViewState))
         };
-        state.active_text_field = active_field;
+        state.active_text_input = active_field;
     }
 
     pub fn open_file(&mut self, options: FileDialogOptions) -> Option<FileDialogToken> {

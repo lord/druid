@@ -324,18 +324,18 @@ impl WindowHandle {
     }
 
     /// TODO
-    pub fn add_text_field(&self) -> TextInputToken {
-        self.0.add_text_field()
+    pub fn add_text_input(&self) -> TextInputToken {
+        self.0.add_text_input()
     }
 
     /// TODO
-    pub fn remove_text_field(&self, token: TextInputToken) {
-        self.0.remove_text_field(token)
+    pub fn remove_text_input(&self, token: TextInputToken) {
+        self.0.remove_text_input(token)
     }
 
     /// TODO
-    pub fn set_active_text_field(&self, active_field: Option<TextInputToken>) {
-        self.0.set_active_text_field(active_field)
+    pub fn set_active_text_input(&self, active_field: Option<TextInputToken>) {
+        self.0.set_active_text_input(active_field)
     }
 
     /// Schedule a timer.

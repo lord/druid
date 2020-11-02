@@ -48,22 +48,28 @@ pub trait TextInputHandler {
 }
 
 /// TODO
-pub fn simulate_text_input<H: WinHandler + ?Sized>(handler: &mut H, token: Option<TextInputToken>, event: KeyEvent) {
-    if handler.key_down(event.clone()) || event.mods.ctrl() || event.mods.meta() || event.mods.alt() {
-        return;
+pub fn simulate_text_input<H: WinHandler + ?Sized>(handler: &mut H, token: Option<TextInputToken>, event: KeyEvent) -> bool {
+    if handler.key_down(event.clone()) {
+        return true;
     }
+
+    if event.mods.ctrl() || event.mods.meta() || event.mods.alt() {
+        return false;
+    }
+
     let c = match event.key {
         KbKey::Character(c) => c,
-        _ => return,
+        _ => return false,
     };
     let token = match token {
         Some(v) => v,
-        None => return,
+        None => return false,
     };
     let mut input_handler = match handler.text_input(token, true) {
         Some(v) => v,
-        None => return,
+        None => return false,
     };
     let selection = input_handler.selected_range();
     input_handler.replace(selection, &c);
+    true
 }

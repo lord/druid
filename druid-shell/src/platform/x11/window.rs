@@ -1478,15 +1478,15 @@ impl WindowHandle {
         PietText::new()
     }
 
-    pub fn add_text_field(&self) -> TextInputToken {
+    pub fn add_text_input(&self) -> TextInputToken {
         unimplemented!()
     }
 
-    pub fn remove_text_field(&self, token: &TextInputToken) {
+    pub fn remove_text_input(&self, token: &TextInputToken) {
         unimplemented!()
     }
 
-    pub fn set_active_text_field(&self, active_field: Option<&TextInputToken>) {
+    pub fn set_active_text_input(&self, active_field: Option<&TextInputToken>) {
         unimplemented!()
     }
 

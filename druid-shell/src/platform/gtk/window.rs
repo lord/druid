@@ -905,15 +905,11 @@ impl WindowHandle {
         PietText::new()
     }
 
-    pub fn add_text_field(&self) -> TextInputToken {
-        let token = TextInputToken::next();
-        if let Some(state) = self.state.upgrade() {
-            state.active_text_input.set(Some(token))
-        }
-        token
+    pub fn add_text_input(&self) -> TextInputToken {
+        TextInputToken::next()
     }
 
-    pub fn remove_text_field(&self, token: TextInputToken) {
+    pub fn remove_text_input(&self, token: TextInputToken) {
         if let Some(state) = self.state.upgrade() {
             if state.active_text_input.get() == Some(token) {
                 state.active_text_input.set(None)
@@ -921,9 +917,9 @@ impl WindowHandle {
         }
     }
 
-    pub fn set_active_text_field(&self, active_field: Option<TextInputToken>) {
+    pub fn set_active_text_input(&self, active_field: Option<TextInputToken>) {
         if let Some(state) = self.state.upgrade() {
-            state.active_text_input.set(active_field)
+            state.active_text_input.set(active_field);
         }
     }
 

@@ -36,7 +36,8 @@ struct HelloState {
 impl WinHandler for HelloState {
     fn connect(&mut self, handle: &WindowHandle) {
         self.handle = handle.clone();
-        self.handle.add_text_field();
+        let token = self.handle.add_text_input();
+        self.handle.set_active_text_input(Some(token));
     }
 
     fn prepare_paint(&mut self) {}

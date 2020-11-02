@@ -66,6 +66,7 @@ use crate::keyboard::{KbKey, KeyState};
 use crate::mouse::{Cursor, CursorDesc, MouseButton, MouseButtons, MouseEvent};
 use crate::region::Region;
 use crate::scale::{Scalable, Scale, ScaledArea};
+use crate::text_input::{simulate_text_input, TextInputHandler, TextInputToken};
 use crate::window;
 use crate::window::{DeferredOp, FileDialogToken, IdleToken, TimerToken, WinHandler, WindowLevel};
 
@@ -156,6 +157,7 @@ struct WindowState {
     // For resizable borders, window can still be resized with code.
     is_resizable: Cell<bool>,
     handle_titlebar: Cell<bool>,
+    active_text_input: Cell<Option<TextInputToken>>,
 }
 
 /// Generic handler trait for the winapi window procedure entry point.
@@ -807,7 +809,14 @@ impl WndProc for MyWndProc {
                                 && (event.key == KbKey::Alt || event.key == KbKey::F10);
                             match event.state {
                                 KeyState::Down => {
-                                    if s.handler.key_down(event) || handle_menu {
+                                    let keydown_handled = self.with_window_state(|window_state| {
+                                        simulate_text_input(
+                                            &mut *s.handler,
+                                            window_state.active_text_input.get(),
+                                            event,
+                                        )
+                                    });
+                                    if keydown_handled || handle_menu {
                                         return true;
                                     }
                                 }
@@ -1188,6 +1197,7 @@ impl WindowBuilder {
                 has_titlebar: Cell::new(self.show_titlebar),
                 is_resizable: Cell::new(self.resizable),
                 handle_titlebar: Cell::new(false),
+                active_text_input: Cell::new(None),
             };
             let win = Rc::new(window);
             let handle = WindowHandle {
@@ -1689,16 +1699,22 @@ impl WindowHandle {
         PietText::new(self.dwrite_factory.clone())
     }
 
-    pub fn add_text_field(&self) -> TextInputToken {
-        unimplemented!()
+    pub fn add_text_input(&self) -> TextInputToken {
+        TextInputToken::next()
     }
 
-    pub fn remove_text_field(&self, token: &TextInputToken) {
-        unimplemented!()
+    pub fn remove_text_input(&self, token: TextInputToken) {
+        if let Some(state) = self.state.upgrade() {
+            if state.active_text_input.get() == Some(token) {
+                state.active_text_input.set(None);
+            }
+        }
     }
 
-    pub fn set_active_text_field(&self, active_field: Option<&TextInputToken>) {
-        unimplemented!()
+    pub fn set_active_text_input(&self, active_field: Option<TextInputToken>) {
+        if let Some(state) = self.state.upgrade() {
+            state.active_text_input.set(active_field);
+        }
     }
 
     /// Request a timer event.
