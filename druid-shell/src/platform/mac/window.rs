@@ -941,21 +941,76 @@ extern "C" fn selected_range(this: &mut Object, _: Sel) -> NSRange {
 extern "C" fn set_marked_text(
     this: &mut Object,
     _: Sel,
-    insert_string: id,
+    text: id,
     selected_range: NSRange,
     replacement_range: NSRange,
 ) {
     println!(">> set_marked_text");
-    // TODO
+    let mut edit_lock = match get_edit_lock(this, false) {
+        Some(v) => v,
+        None => return,
+    };
+    let (old_composition_range, replace_range) = match (
+        edit_lock.composition_range(),
+        parse_range(replacement_range),
+    ) {
+        (Some(composition), Some(replacement)) => {
+            // replacement range is relative to start of old composition range
+            // TODO utf8 code points, PARSE_RANGE range will have wrong start of composition range
+            let shifted_replacement =
+                (replacement.start + composition.start)..(replacement.end + composition.start);
+            (composition, shifted_replacement)
+        }
+        (Some(composition), None) => {
+            // default replacement range is already-exsiting composition range
+            // undocumented by apple, see
+            // https://github.com/yvt/Stella2/blob/076fb6ee2294fcd1c56ed04dd2f4644bf456e947/tcw3/pal/src/macos/window.rs#L1124-L1125
+            (composition.clone(), composition)
+        }
+        (None, Some(replacement)) => {
+            // this indicates replacement range is in absolute document coords, intsead of composition range-relative coords
+            // undocumented by apple, see
+            // https://github.com/yvt/Stella2/blob/076fb6ee2294fcd1c56ed04dd2f4644bf456e947/tcw3/pal/src/macos/window.rs#L1144-L1146
+            (replacement.clone(), replacement)
+        }
+        (None, None) => {
+            // default composition range is the selection
+            let selection = edit_lock.selected_range();
+            (selection.clone(), selection)
+        }
+    };
+    let text_string = parse_attributed_string(&text);
+    // TODO utf8 -> utf16
+    edit_lock.replace(replace_range.clone(), text_string);
+
+    // Update the composition range
+    let new_composition_range = old_composition_range.start
+        ..old_composition_range.end - replace_range.len() + text_string.len();
+    let new_composition_range = if new_composition_range.len() == 0 {
+        None
+    } else {
+        Some(new_composition_range)
+    };
+    edit_lock.set_composition_range(new_composition_range);
+
+    // Update the selection
+    let mut new_selection_range = parse_range(selected_range).unwrap_or_else(|| 0..0);
+    // TODO more utf16 conversion
+    new_selection_range.start += replace_range.start;
+    new_selection_range.end += replace_range.start;
+    edit_lock.set_selected_range(new_selection_range);
 }
 
 extern "C" fn unmark_text(this: &mut Object, _: Sel) {
     println!(">> unmark_text");
-    // TODO
+    let mut edit_lock = match get_edit_lock(this, false) {
+        Some(v) => v,
+        None => return,
+    };
+    edit_lock.set_composition_range(None);
 }
 
 extern "C" fn valid_attributes_for_marked_text(this: &mut Object, _: Sel) -> id {
-    println!(">> valid_attributes_for_marked_text");
     unsafe { NSArray::array(nil) }
 }
 
@@ -966,6 +1021,7 @@ extern "C" fn attributed_substring_for_proposed_range(
     actual_range: *mut c_void,
 ) -> id {
     println!(">> attributed_substring_for_proposed_range");
+    // TODO IMPLEMENT
     nil
 }
 
@@ -974,32 +1030,32 @@ extern "C" fn insert_text(this: &mut Object, _: Sel, text: id, replacement_range
         Some(v) => v,
         None => return,
     };
-    let text_string = unsafe {
-        let nsstring = if msg_send![text, isKindOfClass: class!(NSAttributedString)] {
-            msg_send![text, string]
-        } else {
-            // already a NSString
-            text
-        };
-        let slice =
-            std::slice::from_raw_parts(nsstring.UTF8String() as *const c_uchar, nsstring.len());
-        std::str::from_utf8_unchecked(slice)
-    };
+    let text_string = parse_attributed_string(&text);
 
     // yvt notes:
     // [The null range case] is undocumented, but it seems that it means
     // the whole marked text or selected text should be finalized
     // and replaced with the given string.
+    // https://github.com/yvt/Stella2/blob/076fb6ee2294fcd1c56ed04dd2f4644bf456e947/tcw3/pal/src/macos/window.rs#L1041-L1043
     let converted_range = parse_range(replacement_range)
         .or_else(|| edit_lock.composition_range())
         .unwrap_or_else(|| edit_lock.selected_range());
 
-    edit_lock.replace(converted_range, text_string);
+    edit_lock.replace(converted_range.clone(), text_string);
+    edit_lock.set_composition_range(None);
+    // move the caret next to the inserted text
+    let caret_index = converted_range.start + text_string.len();
+    edit_lock.set_selected_range(caret_index..caret_index);
 }
 
 extern "C" fn character_index_for_point(this: &mut Object, _: Sel, point: NSPoint) -> NSUInteger {
-    // TODO
-    0
+    let mut edit_lock = match get_edit_lock(this, true) {
+        Some(v) => v,
+        None => return 0,
+    };
+    edit_lock
+        .index_from_point(Point::new(point.x, point.y), ())
+        .unwrap_or(0) as NSUInteger
 }
 
 extern "C" fn first_rect_for_character_range(
@@ -1008,7 +1064,17 @@ extern "C" fn first_rect_for_character_range(
     character_range: NSRange,
     actual_range: *mut c_void,
 ) -> NSRect {
-    NSRect::new(NSPoint::new(0.0, 0.0), NSSize::new(0.0, 0.0))
+    let mut edit_lock = match get_edit_lock(this, true) {
+        Some(v) => v,
+        None => return NSRect::new(NSPoint::new(0.0, 0.0), NSSize::new(0.0, 0.0)),
+    };
+    let range = parse_range(character_range).unwrap_or(0..0);
+    let (rect, _) = edit_lock.slice_bounds(range).unwrap();
+    // TODO set actual_range, figure out how macos wants us to send offscreen ranges
+    NSRect::new(
+        NSPoint::new(rect.x0, rect.y0),
+        NSSize::new(rect.width(), rect.height()),
+    )
 }
 
 extern "C" fn do_command_by_selector(this: &mut Object, _: Sel, _: Sel) {
@@ -1031,6 +1097,20 @@ fn parse_range(range: NSRange) -> Option<Range<usize>> {
         None
     } else {
         Some(range.location as usize..range.length as usize)
+    }
+}
+
+fn parse_attributed_string(text: &id) -> &str {
+    unsafe {
+        let nsstring = if msg_send![*text, isKindOfClass: class!(NSAttributedString)] {
+            msg_send![*text, string]
+        } else {
+            // already a NSString
+            *text
+        };
+        let slice =
+            std::slice::from_raw_parts(nsstring.UTF8String() as *const c_uchar, nsstring.len());
+        std::str::from_utf8_unchecked(slice)
     }
 }
 
