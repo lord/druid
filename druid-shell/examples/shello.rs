@@ -129,6 +129,9 @@ impl TextInputHandler for DummyTextInputHandler {
         println!("  text input - selected_range");
         0..1
     }
+    fn composition_range(&mut self) -> Option<Range<usize>> {
+        None
+    }
     fn set_selected_range(&mut self, range: Range<usize>) {
         println!("  text input - set_selected_range: {:?}", range);
     }

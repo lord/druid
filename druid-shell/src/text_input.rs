@@ -33,6 +33,7 @@ impl TextInputToken {
 /// TODO
 pub trait TextInputHandler {
     fn selected_range(&mut self) -> Range<usize>;
+    fn composition_range(&mut self) -> Option<Range<usize>>;
     fn set_selected_range(&mut self, range: Range<usize>);
     fn set_composition_range(&mut self, range: Option<Range<usize>>);
     fn replace(&mut self, range: Range<usize>, text: &str);

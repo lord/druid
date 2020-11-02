@@ -45,6 +45,7 @@ use crate::region::Region;
 use crate::scale::{Scalable, Scale, ScaledArea};
 use crate::window;
 use crate::window::{DeferredOp, FileDialogToken, IdleToken, TimerToken, WinHandler, WindowLevel};
+use crate::text_input::{TextInputToken, simulate_text_input, TextInputHandler};
 
 use super::application::Application;
 use super::dialog;
@@ -148,6 +149,7 @@ pub(crate) struct WindowState {
     pub(crate) handler: RefCell<Box<dyn WinHandler>>,
     idle_queue: Arc<Mutex<Vec<IdleKind>>>,
     current_keycode: Cell<Option<u16>>,
+    active_text_input: Cell<Option<TextInputToken>>,
     last_click: Cell<(f64, f64)>,
     last_click_time: Cell<Instant>,
     last_click_count: Cell<u8>,
@@ -253,6 +255,7 @@ impl WindowBuilder {
             handler: RefCell::new(handler),
             idle_queue: Arc::new(Mutex::new(vec![])),
             current_keycode: Cell::new(None),
+            active_text_input: Cell::new(None),
             last_click: Cell::new((0.0, 0.0)),
             last_click_time: Cell::new(Instant::now()),
             last_click_count: Cell::new(0),
@@ -580,7 +583,7 @@ impl WindowBuilder {
                     state.current_keycode.set(Some(hw_keycode));
 
                     state.with_handler(|h|
-                        h.key_down(make_key_event(key, repeat, KeyState::Down))
+                        simulate_text_input(h, state.active_text_input.get(), make_key_event(key, repeat, KeyState::Down))
                     );
                 }
 
@@ -903,15 +906,25 @@ impl WindowHandle {
     }
 
     pub fn add_text_field(&self) -> TextInputToken {
-        unimplemented!()
+        let token = TextInputToken::next();
+        if let Some(state) = self.state.upgrade() {
+            state.active_text_input.set(Some(token))
+        }
+        token
     }
 
-    pub fn remove_text_field(&self, token: &TextInputToken) {
-        unimplemented!()
+    pub fn remove_text_field(&self, token: TextInputToken) {
+        if let Some(state) = self.state.upgrade() {
+            if state.active_text_input.get() == Some(token) {
+                state.active_text_input.set(None)
+            }
+        }
     }
 
-    pub fn set_active_text_field(&self, active_field: Option<&TextInputToken>) {
-        unimplemented!()
+    pub fn set_active_text_field(&self, active_field: Option<TextInputToken>) {
+        if let Some(state) = self.state.upgrade() {
+            state.active_text_input.set(active_field)
+        }
     }
 
     pub fn request_timer(&self, deadline: Instant) -> TimerToken {
