@@ -906,7 +906,6 @@ extern "C" fn window_will_close(this: &mut Object, _: Sel, _window: id) {
 }
 
 extern "C" fn has_marked_text(this: &mut Object, _: Sel) -> BOOL {
-    println!(">> has_marked_text");
     get_edit_lock(this, false)
         .map(|mut edit_lock| edit_lock.composition_range().is_some())
         .unwrap_or(false)
@@ -914,7 +913,6 @@ extern "C" fn has_marked_text(this: &mut Object, _: Sel) -> BOOL {
 }
 
 extern "C" fn marked_range(this: &mut Object, _: Sel) -> NSRange {
-    println!(">> marked_range");
     let mut edit_lock = match get_edit_lock(this, false) {
         Some(v) => v,
         None => return NSRange::new(NSNotFound as NSUInteger, 0),
@@ -928,7 +926,6 @@ extern "C" fn marked_range(this: &mut Object, _: Sel) -> NSRange {
 }
 
 extern "C" fn selected_range(this: &mut Object, _: Sel) -> NSRange {
-    println!(">> selected_range");
     let mut edit_lock = match get_edit_lock(this, false) {
         Some(v) => v,
         None => return NSRange::new(NSNotFound as NSUInteger, 0),
@@ -945,7 +942,6 @@ extern "C" fn set_marked_text(
     selected_range: NSRange,
     replacement_range: NSRange,
 ) {
-    println!(">> set_marked_text");
     let mut edit_lock = match get_edit_lock(this, false) {
         Some(v) => v,
         None => return,
@@ -1002,7 +998,6 @@ extern "C" fn set_marked_text(
 }
 
 extern "C" fn unmark_text(this: &mut Object, _: Sel) {
-    println!(">> unmark_text");
     let mut edit_lock = match get_edit_lock(this, false) {
         Some(v) => v,
         None => return,
@@ -1020,7 +1015,7 @@ extern "C" fn attributed_substring_for_proposed_range(
     proposed_range: NSRange,
     actual_range: *mut c_void,
 ) -> id {
-    println!(">> attributed_substring_for_proposed_range");
+    println!(">> attributed_substring_for_proposed_range unimplemented");
     // TODO IMPLEMENT
     nil
 }
@@ -1071,10 +1066,14 @@ extern "C" fn first_rect_for_character_range(
     let range = parse_range(character_range).unwrap_or(0..0);
     let (rect, _) = edit_lock.slice_bounds(range).unwrap();
     // TODO set actual_range, figure out how macos wants us to send offscreen ranges
-    NSRect::new(
+    let window_space_rect = NSRect::new(
         NSPoint::new(rect.x0, rect.y0),
         NSSize::new(rect.width(), rect.height()),
-    )
+    );
+    unsafe {
+        let window: id = msg_send![this as *const _, window];
+        window.convertRectToScreen_(window_space_rect)
+    }
 }
 
 extern "C" fn do_command_by_selector(this: &mut Object, _: Sel, _: Sel) {
