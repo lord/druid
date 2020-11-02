@@ -977,7 +977,7 @@ extern "C" fn set_marked_text(
     };
     let text_string = parse_attributed_string(&text);
     // TODO utf8 -> utf16
-    edit_lock.replace(replace_range.clone(), text_string);
+    edit_lock.replace_range(replace_range.clone(), text_string);
 
     // Update the composition range
     let new_composition_range = old_composition_range.start
@@ -1036,7 +1036,7 @@ extern "C" fn insert_text(this: &mut Object, _: Sel, text: id, replacement_range
         .or_else(|| edit_lock.composition_range())
         .unwrap_or_else(|| edit_lock.selected_range());
 
-    edit_lock.replace(converted_range.clone(), text_string);
+    edit_lock.replace_range(converted_range.clone(), text_string);
     edit_lock.set_composition_range(None);
     // move the caret next to the inserted text
     let caret_index = converted_range.start + text_string.len();
@@ -1048,9 +1048,8 @@ extern "C" fn character_index_for_point(this: &mut Object, _: Sel, point: NSPoin
         Some(v) => v,
         None => return 0,
     };
-    edit_lock
-        .index_from_point(Point::new(point.x, point.y), ())
-        .unwrap_or(0) as NSUInteger
+    let hit_test = edit_lock.hit_test_point(Point::new(point.x, point.y));
+    hit_test.idx as NSUInteger
 }
 
 extern "C" fn first_rect_for_character_range(
@@ -1064,7 +1063,8 @@ extern "C" fn first_rect_for_character_range(
         None => return NSRect::new(NSPoint::new(0.0, 0.0), NSSize::new(0.0, 0.0)),
     };
     let range = parse_range(character_range).unwrap_or(0..0);
-    let (rect, _) = edit_lock.slice_bounds(range).unwrap();
+    let line_range = edit_lock.line_range(range.start);
+    let rect = edit_lock.slice_bounding_box(range.start..usize::min(line_range.end, range.end)).unwrap();
     // TODO set actual_range, figure out how macos wants us to send offscreen ranges
     let view_space_rect = NSRect::new(
         NSPoint::new(rect.x0, rect.y0),

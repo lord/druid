@@ -19,7 +19,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use druid_shell::kurbo::{Line, Size};
-use druid_shell::piet::{Color, RenderContext};
+use druid_shell::piet::{Color, RenderContext, HitTestPoint};
 
 use druid_shell::{
     Application, Cursor, FileDialogOptions, FileDialogToken, FileInfo, FileSpec, HotKey, KeyEvent,
@@ -125,51 +125,41 @@ impl TextInputHandler for AppTextInputHandler {
     fn set_composition_range(&mut self, range: Option<Range<usize>>) {
         self.state.borrow_mut().composition = range;
     }
-    fn replace(&mut self, range: Range<usize>, text: &str) {
+    fn replace_range(&mut self, range: Range<usize>, text: &str) {
         self.state.borrow_mut().text.replace_range(range, text);
     }
     fn slice<'a>(&'a mut self, range: Range<usize>) -> Cow<'a, str> {
         self.state.borrow().text[range].to_string().into()
     }
-    fn floor_index(&mut self, mut i: usize) -> usize {
-        let state = self.state.borrow();
-        let text = &state.text;
-        if i >= text.len() {
-            return text.len();
-        }
-        while !text.is_char_boundary(i) {
-            i -= 1;
-        }
-        i
-    }
-    fn ceil_index(&mut self, mut i: usize) -> usize {
-        let state = self.state.borrow();
-        let text = &state.text;
-        if i >= text.len() {
-            return text.len();
-        }
-        while !text.is_char_boundary(i) {
-            i += 1;
-        }
-        i
+    fn is_char_boundary(&mut self, i: usize) -> bool {
+        self.state.borrow().text.is_char_boundary(i)
     }
     fn len(&mut self) -> usize {
         self.state.borrow().text.len()
     }
-    fn index_from_point(&mut self, point: Point, _flags: ()) -> Option<usize> {
-        if point.x < 0.0 {
-            None
+    fn hit_test_point(&mut self, point: Point) -> HitTestPoint {
+        let mut hit_test = HitTestPoint::default();
+        if point.x < 0.0 || point.y < 0.0 {
+            hit_test.idx = 0;
+            hit_test.is_inside = false;
+        } else if point.x > self.window_size.width || point.y > self.window_size.height {
+            hit_test.idx = self.state.borrow().text.len();
+            hit_test.is_inside = false;
         } else {
-            Some((point.x / CHAR_WIDTH) as usize)
+            hit_test.idx = (point.x / CHAR_WIDTH) as usize;
+            hit_test.is_inside = true;
         }
+        hit_test
     }
-    fn frame(&mut self) -> Option<Rect> {
+    fn bounding_box(&mut self) -> Option<Rect> {
         Some(Rect::new(0.0, 0.0, self.window_size.width, self.window_size.height))
     }
-    fn slice_bounds(&mut self, range: Range<usize>) -> Option<(Rect, usize)> {
-        let rect = Rect::new(CHAR_WIDTH * range.start as f64, 0.0, CHAR_WIDTH * range.end as f64, CHAR_HEIGHT);
-        println!("slice bounds rect: {:?}", &rect);
-        Some((rect, range.end))
+    fn slice_bounding_box(&mut self, range: Range<usize>) -> Option<Rect> {
+        Some(Rect::new(CHAR_WIDTH * range.start as f64, 0.0, CHAR_WIDTH * range.end as f64, CHAR_HEIGHT))
+    }
+    fn line_range(&mut self, _char_index: usize) -> Range<usize> {
+        // we don't have multiple lines, so no matter the input, output is the whole document
+        0..self.state.borrow().text.len()
     }
 }
 
