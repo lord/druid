@@ -18,6 +18,7 @@
 
 use std::ffi::c_void;
 use std::mem;
+use std::ops::Range;
 use std::sync::{Arc, Mutex, Weak};
 use std::time::Instant;
 use std::{any::Any, os::raw::c_uchar};
@@ -60,7 +61,7 @@ use crate::keyboard_types::KeyState;
 use crate::mouse::{Cursor, CursorDesc, MouseButton, MouseButtons, MouseEvent};
 use crate::region::Region;
 use crate::scale::Scale;
-use crate::text_input::{simulate_text_input, TextInputToken};
+use crate::text_input::{TextInputHandler, TextInputToken};
 use crate::window::{FileDialogToken, IdleToken, TimerToken, WinHandler, WindowLevel, WindowState};
 use crate::Error;
 
@@ -906,28 +907,29 @@ extern "C" fn window_will_close(this: &mut Object, _: Sel, _window: id) {
 
 extern "C" fn has_marked_text(this: &mut Object, _: Sel) -> BOOL {
     println!(">> has_marked_text");
-    // TODO
-    NO
+    get_edit_lock(this, false)
+        .map(|mut edit_lock| edit_lock.composition_range().is_some())
+        .unwrap_or(false)
+        .into()
 }
 
 extern "C" fn marked_range(this: &mut Object, _: Sel) -> NSRange {
     println!(">> marked_range");
-    // TODO
-    NSRange::new(NSNotFound as NSUInteger, 0)
+    let mut edit_lock = match get_edit_lock(this, false) {
+        Some(v) => v,
+        None => return NSRange::new(NSNotFound as NSUInteger, 0),
+    };
+    let range = match edit_lock.composition_range() {
+        Some(v) => v,
+        None => return NSRange::new(NSNotFound as NSUInteger, 0),
+    };
+    // TODO convert utf8 -> utf16
+    NSRange::new(range.start as u64, range.end as u64)
 }
 
 extern "C" fn selected_range(this: &mut Object, _: Sel) -> NSRange {
     println!(">> selected_range");
-    let view_state = unsafe {
-        let view_state: *mut c_void = *this.get_ivar("viewState");
-        let view_state = &mut *(view_state as *mut ViewState);
-        &mut (*view_state)
-    };
-    let active_text_input = match view_state.active_text_input {
-        Some(v) => v,
-        None => return NSRange::new(NSNotFound as NSUInteger, 0),
-    };
-    let mut edit_lock = match view_state.handler.text_input(active_text_input, false) {
+    let mut edit_lock = match get_edit_lock(this, false) {
         Some(v) => v,
         None => return NSRange::new(NSNotFound as NSUInteger, 0),
     };
@@ -968,16 +970,7 @@ extern "C" fn attributed_substring_for_proposed_range(
 }
 
 extern "C" fn insert_text(this: &mut Object, _: Sel, text: id, replacement_range: NSRange) {
-    let view_state = unsafe {
-        let view_state: *mut c_void = *this.get_ivar("viewState");
-        let view_state = &mut *(view_state as *mut ViewState);
-        &mut (*view_state)
-    };
-    let active_text_input = match view_state.active_text_input {
-        Some(v) => v,
-        None => return,
-    };
-    let mut edit_lock = match view_state.handler.text_input(active_text_input, true) {
+    let mut edit_lock = match get_edit_lock(this, true) {
         Some(v) => v,
         None => return,
     };
@@ -992,19 +985,16 @@ extern "C" fn insert_text(this: &mut Object, _: Sel, text: id, replacement_range
             std::slice::from_raw_parts(nsstring.UTF8String() as *const c_uchar, nsstring.len());
         std::str::from_utf8_unchecked(slice)
     };
-    let fixed_range = if replacement_range.location as usize >= i32::max_value() as usize {
-        // yvt notes:
-        // This case is undocumented, but it seems that it means
-        // the whole marked text or selected text should be finalized
-        // and replaced with the given string.
 
-        // TODO try first to replace marked range before selected range
-        edit_lock.selected_range()
-    } else {
-        replacement_range.location as usize..replacement_range.length as usize
-    };
+    // yvt notes:
+    // [The null range case] is undocumented, but it seems that it means
+    // the whole marked text or selected text should be finalized
+    // and replaced with the given string.
+    let converted_range = parse_range(replacement_range)
+        .or_else(|| edit_lock.composition_range())
+        .unwrap_or_else(|| edit_lock.selected_range());
 
-    edit_lock.replace(fixed_range, text_string);
+    edit_lock.replace(converted_range, text_string);
 }
 
 extern "C" fn character_index_for_point(this: &mut Object, _: Sel, point: NSPoint) -> NSUInteger {
@@ -1023,6 +1013,25 @@ extern "C" fn first_rect_for_character_range(
 
 extern "C" fn do_command_by_selector(this: &mut Object, _: Sel, _: Sel) {
     // TODO
+}
+
+fn get_edit_lock(this: &mut Object, mutable: bool) -> Option<Box<dyn TextInputHandler>> {
+    let view_state = unsafe {
+        let view_state: *mut c_void = *this.get_ivar("viewState");
+        let view_state = &mut *(view_state as *mut ViewState);
+        &mut (*view_state)
+    };
+    view_state
+        .handler
+        .text_input(view_state.active_text_input?, mutable)
+}
+
+fn parse_range(range: NSRange) -> Option<Range<usize>> {
+    if range.location as usize >= i32::max_value() as usize {
+        None
+    } else {
+        Some(range.location as usize..range.length as usize)
+    }
 }
 
 impl WindowHandle {

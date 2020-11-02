@@ -3,6 +3,7 @@ use std::borrow::Cow;
 use crate::common_util::Counter;
 use crate::window::WinHandler;
 use crate::keyboard::{KbKey, KeyEvent};
+use crate::kurbo::{Rect, Point};
 
 /// A token that uniquely identifies a text input field inside a window.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Hash)]
@@ -41,10 +42,11 @@ pub trait TextInputHandler {
     fn floor_index(&mut self, i: usize) -> usize;
     fn ceil_index(&mut self, i: usize) -> usize;
     fn len(&mut self) -> usize;
-    // fn index_from_point(&mut self, point: Point2<f32>, flags: IndexFromPointFlags)
-    //     -> Option<usize>;
-    // fn frame(&mut self) -> Box2<f32>;
-    // fn slice_bounds(&mut self, range: Range<usize>) -> (Box2<f32>, usize);
+    // TODO flags
+    fn index_from_point(&mut self, point: Point, flags: ()) -> Option<usize>;
+    /// None if text is offscreen. Otherwise, the rect of the text document's onscreen position.
+    fn frame(&mut self) -> Option<Rect>;
+    fn slice_bounds(&mut self, range: Range<usize>) -> Option<(Rect, usize)>;
 }
 
 /// TODO
