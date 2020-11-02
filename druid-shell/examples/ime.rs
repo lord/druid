@@ -167,7 +167,9 @@ impl TextInputHandler for AppTextInputHandler {
         Some(Rect::new(0.0, 0.0, self.window_size.width, self.window_size.height))
     }
     fn slice_bounds(&mut self, range: Range<usize>) -> Option<(Rect, usize)> {
-        Some((Rect::new(CHAR_WIDTH * range.start as f64, 0.0, CHAR_WIDTH * range.end as f64, CHAR_HEIGHT), range.end))
+        let rect = Rect::new(CHAR_WIDTH * range.start as f64, 0.0, CHAR_WIDTH * range.end as f64, CHAR_HEIGHT);
+        println!("slice bounds rect: {:?}", &rect);
+        Some((rect, range.end))
     }
 }
 

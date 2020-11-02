@@ -1066,11 +1066,12 @@ extern "C" fn first_rect_for_character_range(
     let range = parse_range(character_range).unwrap_or(0..0);
     let (rect, _) = edit_lock.slice_bounds(range).unwrap();
     // TODO set actual_range, figure out how macos wants us to send offscreen ranges
-    let window_space_rect = NSRect::new(
+    let view_space_rect = NSRect::new(
         NSPoint::new(rect.x0, rect.y0),
         NSSize::new(rect.width(), rect.height()),
     );
     unsafe {
+        let window_space_rect: NSRect =  msg_send![this as *const _, convertRect: view_space_rect toView: nil];
         let window: id = msg_send![this as *const _, window];
         window.convertRectToScreen_(window_space_rect)
     }
@@ -1095,7 +1096,9 @@ fn parse_range(range: NSRange) -> Option<Range<usize>> {
     if range.location as usize >= i32::max_value() as usize {
         None
     } else {
-        Some(range.location as usize..range.length as usize)
+        let location = range.location as usize;
+        let length = range.length as usize;
+        Some(location..(location+length))
     }
 }
 
