@@ -102,7 +102,6 @@ pub struct NSRange {
     pub location: NSUInteger,
     pub length: NSUInteger,
 }
-
 impl NSRange {
     const NONE: NSRange = NSRange::new(NSNotFound as NSUInteger, 0);
     #[inline]
@@ -110,7 +109,6 @@ impl NSRange {
         NSRange { location, length }
     }
 }
-
 unsafe impl objc::Encode for NSRange {
     fn encode() -> objc::Encoding {
         let encoding = format!(
@@ -1105,6 +1103,7 @@ extern "C" fn first_rect_for_character_range(
 
 extern "C" fn do_command_by_selector(this: &mut Object, _: Sel, _: Sel) {
     // TODO
+    println!("do command!!!");
 }
 
 fn get_edit_lock(this: &mut Object, mutable: bool) -> Option<Box<dyn TextInputHandler>> {
@@ -1273,7 +1272,6 @@ impl WindowHandle {
     }
 
     pub fn add_text_input(&self) -> TextInputToken {
-        // TODO we should actually create a new subview i think
         TextInputToken::next()
     }
 

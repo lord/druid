@@ -1,10 +1,10 @@
-use std::ops::Range;
-use std::borrow::Cow;
 use crate::common_util::Counter;
-use crate::window::WinHandler;
 use crate::keyboard::{KbKey, KeyEvent};
-use crate::kurbo::{Rect, Point};
+use crate::kurbo::{Point, Rect};
 use crate::piet::HitTestPoint;
+use crate::window::WinHandler;
+use std::borrow::Cow;
+use std::ops::Range;
 
 /// A token that uniquely identifies a text input field inside a window.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Hash)]
@@ -86,7 +86,11 @@ pub trait TextInputHandler {
         }
         let doc_range = 0..self.len();
         let text = self.slice(doc_range);
-        let utf16: Vec<u16> = text.encode_utf16().skip(utf16_range.start).take(utf16_range.end).collect();
+        let utf16: Vec<u16> = text
+            .encode_utf16()
+            .skip(utf16_range.start)
+            .take(utf16_range.end)
+            .collect();
         String::from_utf16_lossy(&utf16).len()
     }
 
@@ -116,7 +120,11 @@ pub trait TextInputHandler {
 
 #[allow(dead_code)]
 /// TODO docs
-pub fn simulate_text_input<H: WinHandler + ?Sized>(handler: &mut H, token: Option<TextInputToken>, event: KeyEvent) -> bool {
+pub fn simulate_text_input<H: WinHandler + ?Sized>(
+    handler: &mut H,
+    token: Option<TextInputToken>,
+    event: KeyEvent,
+) -> bool {
     if handler.key_down(event.clone()) {
         return true;
     }
