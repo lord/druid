@@ -81,6 +81,9 @@ pub trait TextInputHandler {
     ///
     /// You can override this if you have some faster system to determine string length.
     fn utf16_to_utf8<'a>(&'a mut self, utf16_range: Range<usize>) -> usize {
+        if utf16_range.is_empty() {
+            return 0;
+        }
         let doc_range = 0..self.len();
         let text = self.slice(doc_range);
         let utf16: Vec<u16> = text.encode_utf16().skip(utf16_range.start).take(utf16_range.end).collect();
