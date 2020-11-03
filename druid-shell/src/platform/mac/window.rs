@@ -928,11 +928,11 @@ extern "C" fn marked_range(this: &mut Object, _: Sel) -> NSRange {
 extern "C" fn selected_range(this: &mut Object, _: Sel) -> NSRange {
     let mut edit_lock = match get_edit_lock(this, false) {
         Some(v) => v,
-        None => return NSRange::new(NSNotFound as NSUInteger, 0),
+        None => return NSRange::NONE,
     };
     let range = edit_lock.selected_range();
     // TODO convert utf8 -> utf16
-    NSRange::new(range.start as u64, range.end as u64)
+    encode_nsrange(&mut edit_lock, range)
 }
 
 extern "C" fn set_marked_text(
