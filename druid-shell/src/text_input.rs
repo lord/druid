@@ -68,13 +68,23 @@ pub trait TextInputHandler {
     /// If `range.start` or `range.end` do not fall on a code point sequence boundary, this method may panic.
     fn slice<'a>(&'a mut self, range: Range<usize>) -> Cow<'a, str>;
 
-    /// Given some UTF-8 code unit `range` of the document, returns the length of the
-    /// range in code units if that text was instead encoded in UTF-16.
+    /// Converts the document into UTF-8, looks up the range specified by `utf8_range` (in UTF-8 code units), reencodes
+    /// that substring into UTF-16, and then returns the number of UTF-16 code units in that substring.
     ///
-    /// The default implementation looks up the text with `slice` and encodes it
-    /// to UTF-16. You can override this if you have some faster system to determine UTF-16 length.
-    fn slice_len_utf16<'a>(&'a mut self, range: Range<usize>) -> usize {
-        self.slice(range).encode_utf16().count()
+    /// You can override this if you have some faster system to determine string length.
+    fn utf8_to_utf16<'a>(&'a mut self, utf8_range: Range<usize>) -> usize {
+        self.slice(utf8_range).encode_utf16().count()
+    }
+
+    /// Converts the document into UTF-16, looks up the range specified by `utf16_range` (in UTF-16 code units), reencodes
+    /// that substring into UTF-8, and then returns the number of UTF-8 code units in that substring.
+    ///
+    /// You can override this if you have some faster system to determine string length.
+    fn utf16_to_utf8<'a>(&'a mut self, utf16_range: Range<usize>) -> usize {
+        let doc_range = 0..self.len();
+        let text = self.slice(doc_range);
+        let utf16: Vec<u16> = text.encode_utf16().skip(utf16_range.start).take(utf16_range.end).collect();
+        String::from_utf16_lossy(&utf16).len()
     }
 
     /// Replaces a range of the text document with `text`.
@@ -101,7 +111,8 @@ pub trait TextInputHandler {
     fn slice_bounding_box(&mut self, range: Range<usize>) -> Option<Rect>;
 }
 
-/// TODO
+#[allow(dead_code)]
+/// TODO docs
 pub fn simulate_text_input<H: WinHandler + ?Sized>(handler: &mut H, token: Option<TextInputToken>, event: KeyEvent) -> bool {
     if handler.key_down(event.clone()) {
         return true;
