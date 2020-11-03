@@ -19,7 +19,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use druid_shell::kurbo::{Line, Size};
-use druid_shell::piet::{Color, RenderContext, HitTestPoint};
+use druid_shell::piet::{Color, RenderContext, HitTestPoint, PietTextLayout, TextLayoutBuilder, TextLayout, PietTextLayoutBuilder, PietText, FontFamily, Text};
 
 use druid_shell::{
     Application, Cursor, FileDialogOptions, FileDialogToken, FileInfo, FileSpec, HotKey, KeyEvent,
@@ -28,10 +28,13 @@ use druid_shell::{
 
 use druid_shell::kurbo::{Rect, Point};
 
-const BG_COLOR: Color = Color::rgb8(0x27, 0x28, 0x22);
-const FG_COLOR: Color = Color::rgb8(0xf0, 0xf0, 0xea);
-const CHAR_WIDTH: f64 = 10.0;
-const CHAR_HEIGHT: f64 = 10.0;
+const BG_COLOR: Color = Color::rgb8(0xff, 0xff, 0xff);
+const COMPOSITION_BG_COLOR: Color = Color::rgb8(0xff, 0xd8, 0x6e);
+const SELECTION_BG_COLOR: Color = Color::rgb8(0x87, 0xc5, 0xff);
+const CARET_COLOR: Color = Color::rgb8(0x00, 0x82, 0xfc);
+// const FG_COLOR: Color = Color::rgb8(0xf0, 0xf0, 0xea);
+const FONT: FontFamily = FontFamily::SANS_SERIF;
+const FONT_SIZE: f64 = 16.0;
 
 #[derive(Default)]
 struct AppState {
@@ -40,11 +43,20 @@ struct AppState {
     document: Rc<RefCell<DocumentState>>,
 }
 
-#[derive(Default, Debug)]
+#[derive(Default)]
 struct DocumentState {
     text: String,
     selection: Range<usize>,
     composition: Option<Range<usize>>,
+    text_engine: Option<PietText>,
+    layout: Option<PietTextLayout>,
+}
+
+impl DocumentState {
+    fn refresh_layout(&mut self) {
+        let text_engine = self.text_engine.as_mut().unwrap();
+        self.layout = Some(text_engine.new_text_layout(self.text.clone()).font(FONT, FONT_SIZE).build().unwrap());
+    }
 }
 
 impl WinHandler for AppState {
@@ -52,14 +64,36 @@ impl WinHandler for AppState {
         self.handle = handle.clone();
         let token = self.handle.add_text_input();
         self.handle.set_active_text_input(Some(token));
+        let mut doc = self.document.borrow_mut();
+        doc.text_engine = Some(handle.text());
+        doc.refresh_layout();
     }
 
-    fn prepare_paint(&mut self) {}
+    fn prepare_paint(&mut self) {
+        self.handle.invalidate();
+    }
 
     fn paint(&mut self, piet: &mut piet_common::Piet, _: &Region) {
+        // TODO bidi
         let rect = self.size.to_rect();
         piet.fill(rect, &BG_COLOR);
-        piet.stroke(Line::new((10.0, 50.0), (90.0, 90.0)), &FG_COLOR, 1.0);
+        let doc = self.document.borrow();
+        let layout = doc.layout.as_ref().unwrap();
+        if let Some(composition_range) = doc.composition.as_ref() {
+            let left_x = layout.hit_test_text_position(composition_range.start).point.x;
+            let right_x = layout.hit_test_text_position(composition_range.end).point.x;
+            piet.fill(Rect::new(left_x, 0.0, right_x, FONT_SIZE), &COMPOSITION_BG_COLOR);
+        }
+        if doc.selection.start != doc.selection.end {
+            let left_x = layout.hit_test_text_position(doc.selection.start).point.x;
+            let right_x = layout.hit_test_text_position(doc.selection.end).point.x;
+            piet.fill(Rect::new(left_x, 0.0, right_x, FONT_SIZE), &SELECTION_BG_COLOR);
+        }
+        piet.draw_text(layout, (0.0, 0.0));
+
+        // draw caret
+        let caret_x = layout.hit_test_text_position(doc.selection.end).point.x;
+        piet.fill(Rect::new(caret_x - 1.0, 0.0, caret_x + 1.0, FONT_SIZE), &CARET_COLOR);
     }
 
     fn command(&mut self, id: u32) {
@@ -86,6 +120,7 @@ impl WinHandler for AppState {
         Some(Box::new(AppTextInputHandler{
             state: self.document.clone(),
             window_size: self.size.clone(),
+            window_handle: self.handle.clone(),
         }))
     }
 
@@ -110,6 +145,7 @@ struct AppTextInputHandler {
     // TODO real lock
     state: Rc<RefCell<DocumentState>>,
     window_size: Size,
+    window_handle: WindowHandle,
 }
 
 impl TextInputHandler for AppTextInputHandler {
@@ -121,12 +157,17 @@ impl TextInputHandler for AppTextInputHandler {
     }
     fn set_selected_range(&mut self, range: Range<usize>) {
         self.state.borrow_mut().selection = range;
+        self.window_handle.request_anim_frame();
     }
     fn set_composition_range(&mut self, range: Option<Range<usize>>) {
         self.state.borrow_mut().composition = range;
+        self.window_handle.request_anim_frame();
     }
     fn replace_range(&mut self, range: Range<usize>, text: &str) {
-        self.state.borrow_mut().text.replace_range(range, text);
+        let mut doc = self.state.borrow_mut();
+        doc.text.replace_range(range, text);
+        doc.refresh_layout();
+        self.window_handle.request_anim_frame();
     }
     fn slice<'a>(&'a mut self, range: Range<usize>) -> Cow<'a, str> {
         self.state.borrow().text[range].to_string().into()
@@ -138,34 +179,21 @@ impl TextInputHandler for AppTextInputHandler {
         self.state.borrow().text.len()
     }
     fn hit_test_point(&mut self, point: Point) -> HitTestPoint {
-        let mut hit_test = HitTestPoint::default();
-        if point.x < 0.0 || point.y < 0.0 {
-            hit_test.idx = 0;
-            hit_test.is_inside = false;
-        } else if point.x > self.window_size.width || point.y > self.window_size.height {
-            hit_test.idx = self.state.borrow().text.len();
-            hit_test.is_inside = false;
-        } else {
-            hit_test.idx = (point.x / CHAR_WIDTH) as usize;
-            hit_test.is_inside = true;
-        }
-        hit_test
+        self.state.borrow().layout.as_ref().unwrap().hit_test_point(point)
     }
     fn bounding_box(&mut self) -> Option<Rect> {
         Some(Rect::new(0.0, 0.0, self.window_size.width, self.window_size.height))
     }
     fn slice_bounding_box(&mut self, range: Range<usize>) -> Option<Rect> {
-        Some(Rect::new(CHAR_WIDTH * range.start as f64, 0.0, CHAR_WIDTH * range.end as f64, CHAR_HEIGHT))
+        let doc = self.state.borrow();
+        let layout = doc.layout.as_ref().unwrap();
+        let range_start_x = layout.hit_test_text_position(range.start).point.x;
+        let range_end_x = layout.hit_test_text_position(range.end).point.x;
+        Some(Rect::new(range_start_x, 0.0, range_end_x, FONT_SIZE))
     }
     fn line_range(&mut self, _char_index: usize) -> Range<usize> {
         // we don't have multiple lines, so no matter the input, output is the whole document
         0..self.state.borrow().text.len()
-    }
-}
-
-impl Drop for AppTextInputHandler {
-    fn drop(&mut self) {
-        println!("new document state: {:?}", self.state.borrow())
     }
 }
 
