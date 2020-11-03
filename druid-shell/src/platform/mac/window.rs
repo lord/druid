@@ -1000,6 +1000,7 @@ extern "C" fn unmark_text(this: &mut Object, _: Sel) {
 }
 
 extern "C" fn valid_attributes_for_marked_text(this: &mut Object, _: Sel) -> id {
+    // we don't support any attributes
     unsafe { NSArray::array(nil) }
 }
 
@@ -1009,9 +1010,27 @@ extern "C" fn attributed_substring_for_proposed_range(
     proposed_range: NSRange,
     actual_range: *mut c_void,
 ) -> id {
-    println!(">> attributed_substring_for_proposed_range unimplemented");
-    // TODO IMPLEMENT
-    nil
+    let mut edit_lock = match get_edit_lock(this, false) {
+        Some(v) => v,
+        None => return nil,
+    };
+    let range = match decode_nsrange(&mut edit_lock, &proposed_range, 0) {
+        Some(v) => v,
+        None => return nil,
+    };
+    if !actual_range.is_null() {
+        let ptr = actual_range as *mut NSRange;
+        let range_utf16 = encode_nsrange(&mut edit_lock, range.clone());
+        unsafe {
+            *ptr = range_utf16;
+        }
+    }
+    let text = edit_lock.slice(range);
+    unsafe {
+        let ns_string = unsafe { NSString::alloc(nil).init_str(&text) };
+        let attr_string: id = msg_send![class!(NSAttributedString), alloc];
+        msg_send![attr_string, initWithString: ns_string]
+    }
 }
 
 extern "C" fn insert_text(this: &mut Object, _: Sel, text: id, replacement_range: NSRange) {
@@ -1061,11 +1080,17 @@ extern "C" fn first_rect_for_character_range(
         let line_range = edit_lock.line_range(range.start);
         range.end = usize::min(range.end, line_range.end);
     }
-    let rect = match edit_lock.slice_bounding_box(range) {
+    let rect = match edit_lock.slice_bounding_box(range.clone()) {
         Some(v) => v,
         None => return NSRect::new(NSPoint::new(0.0, 0.0), NSSize::new(0.0, 0.0)),
     };
-    // TODO set actual_range
+    if !actual_range.is_null() {
+        let ptr = actual_range as *mut NSRange;
+        let range_utf16 = encode_nsrange(&mut edit_lock, range);
+        unsafe {
+            *ptr = range_utf16;
+        }
+    }
     let view_space_rect = NSRect::new(
         NSPoint::new(rect.x0, rect.y0),
         NSSize::new(rect.width(), rect.height()),
@@ -1105,6 +1130,7 @@ fn decode_nsrange(
     if range.location as usize >= i32::max_value() as usize {
         return None;
     }
+    // TODO fix offsets if they don't lie on a unicode boundary, or if they're beyond the end of the document
     let start_offset_utf16 = edit_lock.utf8_to_utf16(0..start_offset);
     let location_utf16 = range.location as usize + start_offset_utf16;
     let length_utf16 = range.length as usize + start_offset_utf16;
