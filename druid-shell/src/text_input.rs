@@ -149,3 +149,59 @@ pub fn simulate_text_input<H: WinHandler + ?Sized>(
     input_handler.replace_range(selection, &c);
     true
 }
+
+#[allow(dead_code)]
+#[non_exhaustive]
+enum Movement {
+    // character movements
+    Grapheme(Direction),
+    Word(Direction),
+    Line(Direction),
+    ParagraphStart,
+    ParagraphEnd,
+    Vertical(VerticalMovement),
+}
+
+#[allow(dead_code)]
+#[non_exhaustive]
+enum Direction {
+    Left,
+    Right,
+    Upstream,
+    Downstream,
+}
+
+#[allow(dead_code)]
+#[non_exhaustive]
+enum VerticalMovement {
+    Up,
+    Down,
+    UpPage,
+    DownPage,
+    DocumentStart,
+    DocumentEnd,
+}
+
+#[allow(dead_code)]
+#[non_exhaustive]
+enum Action {
+    Move(Movement),
+    MoveSelecting(Movement),
+    Delete(Movement),
+    SelectAll,
+    SelectLine,
+    SelectParagraph,
+    SelectWord,
+    UppercaseWord,
+    LowercaseWord,
+    CapitalizeWord,
+    InsertLineBreak,
+    InsertParagraphBreak,
+    InsertTab,
+    InsertBacktab,
+    Scroll(VerticalMovement),
+    Transpose,
+    TransposeWord,
+}
+
+// TODO do these actions really have cross-platform behavior? perhaps they should be converted into method calls on textinputhandler?

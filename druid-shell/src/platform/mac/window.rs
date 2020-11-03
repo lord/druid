@@ -1101,9 +1101,8 @@ extern "C" fn first_rect_for_character_range(
     }
 }
 
-extern "C" fn do_command_by_selector(this: &mut Object, _: Sel, _: Sel) {
-    // TODO
-    println!("do command!!!");
+extern "C" fn do_command_by_selector(this: &mut Object, _: Sel, cmd: Sel) {
+    println!("TODO command!!! {:?}", cmd.name());
 }
 
 fn get_edit_lock(this: &mut Object, mutable: bool) -> Option<Box<dyn TextInputHandler>> {
