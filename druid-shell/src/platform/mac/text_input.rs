@@ -15,54 +15,19 @@
 #![allow(non_snake_case)]
 
 use std::ffi::c_void;
-use std::mem;
 use std::ops::Range;
-use std::sync::{Arc, Mutex, Weak};
-use std::time::Instant;
-use std::{any::Any, os::raw::c_uchar};
+use std::os::raw::c_uchar;
 
-use block::ConcreteBlock;
-use cocoa::base::{id, nil, BOOL, NO, YES};
-use cocoa::foundation::{
-    NSArray, NSAutoreleasePool, NSInteger, NSPoint, NSRect, NSSize, NSString, NSUInteger,
-};
-use cocoa::{
-    appkit::{
-        CGFloat, NSApp, NSApplication, NSAutoresizingMaskOptions, NSBackingStoreBuffered, NSEvent,
-        NSView, NSViewHeightSizable, NSViewWidthSizable, NSWindow, NSWindowStyleMask,
-    },
-    foundation::NSNotFound,
-};
-use core_graphics::context::CGContextRef;
-use foreign_types::ForeignTypeRef;
-use lazy_static::lazy_static;
-use log::{error, info};
-use objc::declare::ClassDecl;
-use objc::rc::WeakPtr;
-use objc::runtime::{Class, Object, Protocol, Sel};
-use objc::{class, msg_send, sel, sel_impl};
-
-use crate::kurbo::{Point, Rect, Size, Vec2};
-use crate::piet::{Piet, PietText, RenderContext};
-
-use super::appkit::{
-    NSRunLoopCommonModes, NSTrackingArea, NSTrackingAreaOptions, NSView as NSViewExt,
-};
-use super::application::Application;
-use super::dialog;
-use super::keyboard::{make_modifiers, KeyboardState};
-use super::menu::Menu;
-use super::util::{assert_main_thread, make_nsstring};
 use super::window::get_edit_lock_from_window;
-use crate::common_util::IdleCallback;
-use crate::dialog::{FileDialogOptions, FileDialogType, FileInfo};
-use crate::keyboard_types::KeyState;
-use crate::mouse::{Cursor, CursorDesc, MouseButton, MouseButtons, MouseEvent};
-use crate::region::Region;
-use crate::scale::Scale;
-use crate::text_input::{TextInputHandler, TextInputToken};
-use crate::window::{FileDialogToken, IdleToken, TimerToken, WinHandler, WindowLevel, WindowState};
-use crate::Error;
+use crate::text_input::TextInputHandler;
+use cocoa::base::{id, nil, BOOL};
+use cocoa::foundation::{
+    NSArray, NSPoint, NSRect, NSSize, NSString, NSUInteger,
+};
+use cocoa::{appkit::NSWindow, foundation::NSNotFound};
+use crate::kurbo::Point;
+use objc::runtime::{Object, Sel};
+use objc::{class, msg_send, sel, sel_impl};
 
 // thanks to winit for the custom NSRange code:
 // https://github.com/rust-windowing/winit/pull/518/files#diff-61be96e960785f102cb20ad8464eafeb6edd4245ea40224b3c3206c72cd5bf56R12-R34
@@ -238,7 +203,11 @@ pub extern "C" fn insert_text(this: &mut Object, _: Sel, text: id, replacement_r
     edit_lock.set_selected_range(caret_index..caret_index);
 }
 
-pub extern "C" fn character_index_for_point(this: &mut Object, _: Sel, point: NSPoint) -> NSUInteger {
+pub extern "C" fn character_index_for_point(
+    this: &mut Object,
+    _: Sel,
+    point: NSPoint,
+) -> NSUInteger {
     let mut edit_lock = match get_edit_lock_from_window(this, true) {
         Some(v) => v,
         None => return 0,
