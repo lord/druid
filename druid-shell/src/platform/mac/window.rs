@@ -95,31 +95,7 @@ mod levels {
     }
 }
 
-// thanks to winit for the custom NSRange code:
-// https://github.com/rust-windowing/winit/pull/518/files#diff-61be96e960785f102cb20ad8464eafeb6edd4245ea40224b3c3206c72cd5bf56R12-R34
-#[repr(C)]
-pub struct NSRange {
-    pub location: NSUInteger,
-    pub length: NSUInteger,
-}
-impl NSRange {
-    const NONE: NSRange = NSRange::new(NSNotFound as NSUInteger, 0);
-    #[inline]
-    pub const fn new(location: NSUInteger, length: NSUInteger) -> NSRange {
-        NSRange { location, length }
-    }
-}
-unsafe impl objc::Encode for NSRange {
-    fn encode() -> objc::Encoding {
-        let encoding = format!(
-            // TODO: Verify that this is correct
-            "{{NSRange={}{}}}",
-            NSUInteger::encode().as_str(),
-            NSUInteger::encode().as_str(),
-        );
-        unsafe { objc::Encoding::from_str(&encoding) }
-    }
-}
+use super::text_input::NSRange;
 
 #[derive(Clone)]
 pub(crate) struct WindowHandle {

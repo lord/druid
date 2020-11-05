@@ -26,3 +26,4 @@ pub mod menu;
 pub mod screen;
 pub mod util;
 pub mod window;
+pub mod text_input;
