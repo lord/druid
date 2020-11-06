@@ -1043,7 +1043,9 @@ impl WindowHandle {
             TextInputUpdate::Reset | TextInputUpdate::SelectionChanged => unsafe {
                 let input_context: id = msg_send![*self.nsview.load(), inputContext];
                 let _: () = msg_send![input_context, discardMarkedText];
-                // TODO need to pull active text input handler and set marked to None
+                if let Some(mut edit_lock) = state.handler.text_input(token, true) {
+                    edit_lock.set_composition_range(None);
+                }
             },
             _ => {}
         }

@@ -72,10 +72,10 @@ pub use mouse::{Cursor, CursorDesc, MouseButton, MouseButtons, MouseEvent};
 pub use region::Region;
 pub use scale::{Scalable, Scale, ScaledArea};
 pub use screen::{Monitor, Screen};
+pub use text_input::{TextInputHandler, TextInputToken, TextInputUpdate};
 pub use window::{
     FileDialogToken, IdleHandle, IdleToken, TimerToken, WinHandler, WindowBuilder, WindowHandle,
     WindowLevel, WindowState,
 };
-pub use text_input::{TextInputToken, TextInputHandler};
 
 pub use keyboard_types;
