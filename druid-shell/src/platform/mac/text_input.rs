@@ -20,7 +20,9 @@ use std::os::raw::c_uchar;
 
 use super::window::get_edit_lock_from_window;
 use crate::kurbo::Point;
-use crate::text_input::{Action, Direction, Movement, TextInputHandler, VerticalMovement};
+use crate::text_input::{
+    Action, Direction, Movement, TextInputHandler, VerticalMovement, WritingDirection,
+};
 use cocoa::base::{id, nil, BOOL};
 use cocoa::foundation::{NSArray, NSPoint, NSRect, NSSize, NSString, NSUInteger};
 use cocoa::{appkit::NSWindow, foundation::NSNotFound};
@@ -255,9 +257,11 @@ pub extern "C" fn first_rect_for_character_range(
 pub extern "C" fn do_command_by_selector(_this: &mut Object, _: Sel, cmd: Sel) {
     let cmd = match cmd.name() {
         // see https://developer.apple.com/documentation/appkit/nsstandardkeybindingresponding?language=objc
+        // and https://support.apple.com/en-us/HT201236
+        // and https://support.apple.com/lv-lv/guide/mac-help/mh21243/mac
         "cancelOperation:" => None, // TODO
         "capitalizeWord:" => Some(Action::CapitalizeWord),
-        "centerSelectionInVisibleArea:" => None, // TODO
+        "centerSelectionInVisibleArea:" => Some(Action::ScrollToSelection), // TODO
         "changeCaseOfLetter:" => Some(Action::SwapLetterCase),
         "complete:" => None, // TODO
         "deleteBackward:" => Some(Action::Delete(Movement::Grapheme(Direction::Upstream))),
@@ -275,19 +279,39 @@ pub extern "C" fn do_command_by_selector(_this: &mut Object, _: Sel, cmd: Sel) {
         "insertContainerBreak:" => None,                  // TODO
         "insertDoubleQuoteIgnoringSubstitution:" => None, // TODO
         "insertLineBreak:" => Some(Action::InsertLineBreak),
-        "insertNewline:" => Some(Action::InsertNewLine),
-        "insertNewlineIgnoringFieldEditor:" => None,
+        "insertNewline:" => Some(Action::InsertNewLine {
+            ignore_autocomplete: false,
+        }),
+        "insertNewlineIgnoringFieldEditor:" => Some(Action::InsertNewLine {
+            ignore_autocomplete: true,
+        }),
         "insertParagraphSeparator:" => Some(Action::InsertParagraphBreak),
         "insertSingleQuoteIgnoringSubstitution:" => None,
-        "insertTab:" => Some(Action::InsertTab),
-        "insertTabIgnoringFieldEditor:" => None,
+        "insertTab:" => Some(Action::InsertTab {
+            ignore_autocomplete: false,
+        }),
+        "insertTabIgnoringFieldEditor:" => Some(Action::InsertTab {
+            ignore_autocomplete: true,
+        }),
         "lowercaseWord:" => Some(Action::LowercaseWord),
-        "makeBaseWritingDirectionLeftToRight:" => None,
-        "makeBaseWritingDirectionNatural:" => None,
-        "makeBaseWritingDirectionRightToLeft:" => None,
-        "makeTextWritingDirectionLeftToRight:" => None,
-        "makeTextWritingDirectionNatural:" => None,
-        "makeTextWritingDirectionRightToLeft:" => None,
+        "makeBaseWritingDirectionLeftToRight:" => Some(Action::SetParagraphWritingDirection(
+            WritingDirection::LeftToRight,
+        )),
+        "makeBaseWritingDirectionNatural:" => Some(Action::SetParagraphWritingDirection(
+            WritingDirection::Natural,
+        )),
+        "makeBaseWritingDirectionRightToLeft:" => Some(Action::SetParagraphWritingDirection(
+            WritingDirection::RightToLeft,
+        )),
+        "makeTextWritingDirectionLeftToRight:" => Some(Action::SetSelectionWritingDirection(
+            WritingDirection::LeftToRight,
+        )),
+        "makeTextWritingDirectionNatural:" => Some(Action::SetSelectionWritingDirection(
+            WritingDirection::Natural,
+        )),
+        "makeTextWritingDirectionRightToLeft:" => Some(Action::SetSelectionWritingDirection(
+            WritingDirection::RightToLeft,
+        )),
         "moveBackward:" => Some(Action::Move(Movement::Grapheme(Direction::Upstream))),
         "moveBackwardAndModifySelection:" => Some(Action::MoveSelecting(Movement::Grapheme(
             Direction::Upstream,

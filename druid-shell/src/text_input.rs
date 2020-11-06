@@ -176,6 +176,15 @@ pub enum Direction {
 }
 
 #[allow(dead_code)]
+#[derive(Debug, PartialEq, Eq, Hash)]
+pub enum WritingDirection {
+    LeftToRight,
+    RightToLeft,
+    /// Indicates writing direction should be automatically detected based on the text contents.
+    Natural,
+}
+
+#[allow(dead_code)]
 #[non_exhaustive]
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub enum VerticalMovement {
@@ -211,9 +220,13 @@ pub enum Action {
 
     // special character insertion, weird edit commands
     InsertLineBreak,
-    InsertNewLine,
+    InsertNewLine {
+        ignore_autocomplete: bool,
+    },
     InsertParagraphBreak,
-    InsertTab,
+    InsertTab {
+        ignore_autocomplete: bool,
+    },
     InsertBacktab,
     Indent,
     Transpose,
@@ -221,4 +234,10 @@ pub enum Action {
 
     // scroll actions
     Scroll(VerticalMovement),
+    /// should center the selection vertically
+    ScrollToSelection,
+
+    // bidi
+    SetSelectionWritingDirection(WritingDirection),
+    SetParagraphWritingDirection(WritingDirection),
 }
