@@ -6,7 +6,7 @@ use crate::window::WinHandler;
 use std::borrow::Cow;
 use std::ops::Range;
 
-/// A token that uniquely identifies a text input field inside a window.
+/// A TextInputToken that uniquely identifies a text input field inside a window.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Hash)]
 /// TODO
 pub struct TextInputToken(u64);
@@ -152,19 +152,23 @@ pub fn simulate_text_input<H: WinHandler + ?Sized>(
 
 #[allow(dead_code)]
 #[non_exhaustive]
-enum Movement {
+#[derive(Debug, PartialEq, Eq, Hash)]
+pub enum Movement {
     // character movements
     Grapheme(Direction),
     Word(Direction),
     Line(Direction),
     ParagraphStart,
     ParagraphEnd,
+    ParagraphPrev,
+    ParagraphNext,
     Vertical(VerticalMovement),
 }
 
 #[allow(dead_code)]
 #[non_exhaustive]
-enum Direction {
+#[derive(Debug, PartialEq, Eq, Hash)]
+pub enum Direction {
     Left,
     Right,
     Upstream,
@@ -173,35 +177,48 @@ enum Direction {
 
 #[allow(dead_code)]
 #[non_exhaustive]
-enum VerticalMovement {
-    Up,
-    Down,
-    UpPage,
-    DownPage,
+#[derive(Debug, PartialEq, Eq, Hash)]
+pub enum VerticalMovement {
+    LineUp,
+    LineDown,
+    PageUp,
+    PageDown,
     DocumentStart,
     DocumentEnd,
 }
 
 #[allow(dead_code)]
 #[non_exhaustive]
-enum Action {
+#[derive(Debug, PartialEq, Eq, Hash)]
+pub enum Action {
+    // selection modifications
     Move(Movement),
     MoveSelecting(Movement),
-    Delete(Movement),
     SelectAll,
     SelectLine,
     SelectParagraph,
     SelectWord,
+
+    // deletion
+    Delete(Movement),
+    DecomposingBackspace,
+
+    // case modifications
     UppercaseWord,
     LowercaseWord,
     CapitalizeWord,
+    SwapLetterCase,
+
+    // special character insertion, weird edit commands
     InsertLineBreak,
+    InsertNewLine,
     InsertParagraphBreak,
     InsertTab,
     InsertBacktab,
-    Scroll(VerticalMovement),
+    Indent,
     Transpose,
     TransposeWord,
-}
 
-// TODO do these actions really have cross-platform behavior? perhaps they should be converted into method calls on textinputhandler?
+    // scroll actions
+    Scroll(VerticalMovement),
+}

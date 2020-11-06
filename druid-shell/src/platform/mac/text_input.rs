@@ -19,13 +19,11 @@ use std::ops::Range;
 use std::os::raw::c_uchar;
 
 use super::window::get_edit_lock_from_window;
-use crate::text_input::TextInputHandler;
-use cocoa::base::{id, nil, BOOL};
-use cocoa::foundation::{
-    NSArray, NSPoint, NSRect, NSSize, NSString, NSUInteger,
-};
-use cocoa::{appkit::NSWindow, foundation::NSNotFound};
 use crate::kurbo::Point;
+use crate::text_input::{Action, Direction, Movement, TextInputHandler, VerticalMovement};
+use cocoa::base::{id, nil, BOOL};
+use cocoa::foundation::{NSArray, NSPoint, NSRect, NSSize, NSString, NSUInteger};
+use cocoa::{appkit::NSWindow, foundation::NSNotFound};
 use objc::runtime::{Object, Sel};
 use objc::{class, msg_send, sel, sel_impl};
 
@@ -174,7 +172,7 @@ pub extern "C" fn attributed_substring_for_proposed_range(
     }
     let text = edit_lock.slice(range);
     unsafe {
-        let ns_string = unsafe { NSString::alloc(nil).init_str(&text) };
+        let ns_string = NSString::alloc(nil).init_str(&text);
         let attr_string: id = msg_send![class!(NSAttributedString), alloc];
         msg_send![attr_string, initWithString: ns_string]
     }
@@ -254,8 +252,156 @@ pub extern "C" fn first_rect_for_character_range(
     }
 }
 
-pub extern "C" fn do_command_by_selector(this: &mut Object, _: Sel, cmd: Sel) {
-    println!("TODO command!!! {:?}", cmd.name());
+pub extern "C" fn do_command_by_selector(_this: &mut Object, _: Sel, cmd: Sel) {
+    let cmd = match cmd.name() {
+        // see https://developer.apple.com/documentation/appkit/nsstandardkeybindingresponding?language=objc
+        "cancelOperation:" => None, // TODO
+        "capitalizeWord:" => Some(Action::CapitalizeWord),
+        "centerSelectionInVisibleArea:" => None, // TODO
+        "changeCaseOfLetter:" => Some(Action::SwapLetterCase),
+        "complete:" => None, // TODO
+        "deleteBackward:" => Some(Action::Delete(Movement::Grapheme(Direction::Upstream))),
+        "deleteBackwardByDecomposingPreviousCharacter:" => Some(Action::DecomposingBackspace),
+        "deleteForward:" => Some(Action::Delete(Movement::Grapheme(Direction::Downstream))),
+        "deleteToBeginningOfLine:" => Some(Action::Delete(Movement::Line(Direction::Upstream))),
+        "deleteToBeginningOfParagraph:" => Some(Action::Delete(Movement::ParagraphStart)),
+        "deleteToEndOfLine:" => Some(Action::Delete(Movement::Line(Direction::Downstream))),
+        "deleteToEndOfParagraph:" => Some(Action::Delete(Movement::ParagraphEnd)),
+        "deleteToMark:" => None, // TODO
+        "deleteWordBackward:" => Some(Action::Delete(Movement::Word(Direction::Upstream))),
+        "deleteWordForward:" => Some(Action::Delete(Movement::Word(Direction::Downstream))),
+        "indent:" => Some(Action::Indent),
+        "insertBacktab:" => Some(Action::InsertBacktab),
+        "insertContainerBreak:" => None,                  // TODO
+        "insertDoubleQuoteIgnoringSubstitution:" => None, // TODO
+        "insertLineBreak:" => Some(Action::InsertLineBreak),
+        "insertNewline:" => Some(Action::InsertNewLine),
+        "insertNewlineIgnoringFieldEditor:" => None,
+        "insertParagraphSeparator:" => Some(Action::InsertParagraphBreak),
+        "insertSingleQuoteIgnoringSubstitution:" => None,
+        "insertTab:" => Some(Action::InsertTab),
+        "insertTabIgnoringFieldEditor:" => None,
+        "lowercaseWord:" => Some(Action::LowercaseWord),
+        "makeBaseWritingDirectionLeftToRight:" => None,
+        "makeBaseWritingDirectionNatural:" => None,
+        "makeBaseWritingDirectionRightToLeft:" => None,
+        "makeTextWritingDirectionLeftToRight:" => None,
+        "makeTextWritingDirectionNatural:" => None,
+        "makeTextWritingDirectionRightToLeft:" => None,
+        "moveBackward:" => Some(Action::Move(Movement::Grapheme(Direction::Upstream))),
+        "moveBackwardAndModifySelection:" => Some(Action::MoveSelecting(Movement::Grapheme(
+            Direction::Upstream,
+        ))),
+        "moveDown:" => Some(Action::Move(Movement::Vertical(VerticalMovement::LineDown))),
+        "moveDownAndModifySelection:" => Some(Action::MoveSelecting(Movement::Vertical(
+            VerticalMovement::LineDown,
+        ))),
+        "moveForward:" => Some(Action::Move(Movement::Grapheme(Direction::Downstream))),
+        "moveForwardAndModifySelection:" => Some(Action::MoveSelecting(Movement::Grapheme(
+            Direction::Downstream,
+        ))),
+        "moveLeft:" => Some(Action::Move(Movement::Grapheme(Direction::Left))),
+        "moveLeftAndModifySelection:" => {
+            Some(Action::MoveSelecting(Movement::Grapheme(Direction::Left)))
+        }
+        "moveParagraphBackwardAndModifySelection:" => {
+            Some(Action::MoveSelecting(Movement::ParagraphPrev))
+        }
+        "moveParagraphForwardAndModifySelection:" => {
+            Some(Action::MoveSelecting(Movement::ParagraphNext))
+        }
+        "moveRight:" => Some(Action::Move(Movement::Grapheme(Direction::Right))),
+        "moveRightAndModifySelection:" => {
+            Some(Action::MoveSelecting(Movement::Grapheme(Direction::Right)))
+        }
+        "moveToBeginningOfDocument:" => Some(Action::Move(Movement::Vertical(
+            VerticalMovement::DocumentStart,
+        ))),
+        "moveToBeginningOfDocumentAndModifySelection:" => Some(Action::MoveSelecting(
+            Movement::Vertical(VerticalMovement::DocumentStart),
+        )),
+        "moveToBeginningOfLine:" => Some(Action::Move(Movement::Line(Direction::Upstream))),
+        "moveToBeginningOfLineAndModifySelection:" => {
+            Some(Action::MoveSelecting(Movement::Line(Direction::Upstream)))
+        }
+        "moveToBeginningOfParagraph:" => Some(Action::Move(Movement::ParagraphStart)),
+        "moveToBeginningOfParagraphAndModifySelection:" => {
+            Some(Action::MoveSelecting(Movement::ParagraphStart))
+        }
+        "moveToEndOfDocument:" => Some(Action::Move(Movement::Vertical(
+            VerticalMovement::DocumentEnd,
+        ))),
+        "moveToEndOfDocumentAndModifySelection:" => Some(Action::MoveSelecting(
+            Movement::Vertical(VerticalMovement::DocumentEnd),
+        )),
+        "moveToEndOfLine:" => Some(Action::Move(Movement::Line(Direction::Downstream))),
+        "moveToEndOfLineAndModifySelection:" => {
+            Some(Action::MoveSelecting(Movement::Line(Direction::Downstream)))
+        }
+        "moveToEndOfParagraph:" => Some(Action::Move(Movement::ParagraphEnd)),
+        "moveToEndOfParagraphAndModifySelection:" => {
+            Some(Action::MoveSelecting(Movement::ParagraphEnd))
+        }
+        "moveToLeftEndOfLine:" => Some(Action::Move(Movement::Line(Direction::Left))),
+        "moveToLeftEndOfLineAndModifySelection:" => {
+            Some(Action::MoveSelecting(Movement::Line(Direction::Left)))
+        }
+        "moveToRightEndOfLine:" => Some(Action::Move(Movement::Line(Direction::Right))),
+        "moveToRightEndOfLineAndModifySelection:" => {
+            Some(Action::MoveSelecting(Movement::Line(Direction::Right)))
+        }
+        "moveUp:" => Some(Action::Move(Movement::Vertical(VerticalMovement::LineUp))),
+        "moveUpAndModifySelection:" => Some(Action::MoveSelecting(Movement::Vertical(
+            VerticalMovement::LineUp,
+        ))),
+        "moveWordBackward:" => Some(Action::Move(Movement::Word(Direction::Upstream))),
+        "moveWordBackwardAndModifySelection:" => {
+            Some(Action::MoveSelecting(Movement::Word(Direction::Upstream)))
+        }
+        "moveWordForward:" => Some(Action::Move(Movement::Word(Direction::Downstream))),
+        "moveWordForwardAndModifySelection:" => {
+            Some(Action::MoveSelecting(Movement::Word(Direction::Downstream)))
+        }
+        "moveWordLeft:" => Some(Action::Move(Movement::Word(Direction::Left))),
+        "moveWordLeftAndModifySelection:" => {
+            Some(Action::MoveSelecting(Movement::Word(Direction::Left)))
+        }
+        "moveWordRight:" => Some(Action::Move(Movement::Word(Direction::Right))),
+        "moveWordRightAndModifySelection:" => {
+            Some(Action::MoveSelecting(Movement::Word(Direction::Right)))
+        }
+        "pageDown:" => Some(Action::Move(Movement::Vertical(VerticalMovement::PageDown))),
+        "pageDownAndModifySelection:" => Some(Action::MoveSelecting(Movement::Vertical(
+            VerticalMovement::PageDown,
+        ))),
+        "pageUp:" => Some(Action::Move(Movement::Vertical(VerticalMovement::PageUp))),
+        "pageUpAndModifySelection:" => Some(Action::MoveSelecting(Movement::Vertical(
+            VerticalMovement::PageUp,
+        ))),
+        "quickLookPreviewItems:" => None, // TODO
+        "scrollLineDown:" => Some(Action::Scroll(VerticalMovement::LineDown)),
+        "scrollLineUp:" => Some(Action::Scroll(VerticalMovement::LineUp)),
+        "scrollPageDown:" => Some(Action::Scroll(VerticalMovement::PageDown)),
+        "scrollPageUp:" => Some(Action::Scroll(VerticalMovement::PageUp)),
+        "scrollToBeginningOfDocument:" => Some(Action::Scroll(VerticalMovement::DocumentStart)),
+        "scrollToEndOfDocument:" => Some(Action::Scroll(VerticalMovement::DocumentEnd)),
+        "selectAll:" => Some(Action::SelectAll),
+        "selectLine:" => Some(Action::SelectLine),
+        "selectParagraph:" => Some(Action::SelectParagraph),
+        "selectToMark:" => None, // TODO
+        "selectWord:" => Some(Action::SelectWord),
+        "setMark:" => None,      // TODO
+        "swapWithMark:" => None, // TODO
+        "transpose:" => Some(Action::Transpose),
+        "transposeWords:" => Some(Action::TransposeWord),
+        "uppercaseWord:" => Some(Action::UppercaseWord),
+        "yank:" => None, // TODO
+        e => {
+            eprintln!("unknown text editing command from macos: {}", e);
+            None
+        }
+    };
+    println!("{:?}", cmd);
 }
 
 /// Parses the UTF-16 `NSRange` into a UTF-8 `Range<usize>`.

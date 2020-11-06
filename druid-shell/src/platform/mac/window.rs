@@ -18,22 +18,18 @@
 
 use std::ffi::c_void;
 use std::mem;
-use std::ops::Range;
 use std::sync::{Arc, Mutex, Weak};
 use std::time::Instant;
 use std::{any::Any, os::raw::c_uchar};
 
 use block::ConcreteBlock;
+use cocoa::appkit::{
+    CGFloat, NSApp, NSApplication, NSAutoresizingMaskOptions, NSBackingStoreBuffered, NSEvent,
+    NSView, NSViewHeightSizable, NSViewWidthSizable, NSWindow, NSWindowStyleMask,
+};
 use cocoa::base::{id, nil, BOOL, NO, YES};
 use cocoa::foundation::{
     NSArray, NSAutoreleasePool, NSInteger, NSPoint, NSRect, NSSize, NSString, NSUInteger,
-};
-use cocoa::{
-    appkit::{
-        CGFloat, NSApp, NSApplication, NSAutoresizingMaskOptions, NSBackingStoreBuffered, NSEvent,
-        NSView, NSViewHeightSizable, NSViewWidthSizable, NSWindow, NSWindowStyleMask,
-    },
-    foundation::NSNotFound,
 };
 use core_graphics::context::CGContextRef;
 use foreign_types::ForeignTypeRef;
@@ -473,7 +469,10 @@ lazy_static! {
     };
 }
 
-pub (super) fn get_edit_lock_from_window(this: &mut Object, mutable: bool) -> Option<Box<dyn TextInputHandler>> {
+pub(super) fn get_edit_lock_from_window(
+    this: &mut Object,
+    mutable: bool,
+) -> Option<Box<dyn TextInputHandler>> {
     let view_state = unsafe {
         let view_state: *mut c_void = *this.get_ivar("viewState");
         let view_state = &mut *(view_state as *mut ViewState);
