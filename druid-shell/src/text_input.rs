@@ -32,6 +32,14 @@ impl TextInputToken {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum TextInputUpdate {
+    SelectionChanged,
+    LayoutChanged,
+    Reset,
+}
+
 /// All ranges, lengths, and indices are specified in UTF-8 code units, unless specified otherwise.
 pub trait TextInputHandler {
     /// Gets the range of the document that is currently selected.
@@ -152,7 +160,7 @@ pub fn simulate_text_input<H: WinHandler + ?Sized>(
 
 #[allow(dead_code)]
 #[non_exhaustive]
-#[derive(Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Movement {
     // character movements
     Grapheme(Direction),
@@ -167,7 +175,7 @@ pub enum Movement {
 
 #[allow(dead_code)]
 #[non_exhaustive]
-#[derive(Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Direction {
     Left,
     Right,
@@ -176,7 +184,7 @@ pub enum Direction {
 }
 
 #[allow(dead_code)]
-#[derive(Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum WritingDirection {
     LeftToRight,
     RightToLeft,
@@ -186,7 +194,7 @@ pub enum WritingDirection {
 
 #[allow(dead_code)]
 #[non_exhaustive]
-#[derive(Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum VerticalMovement {
     LineUp,
     LineDown,
@@ -198,7 +206,7 @@ pub enum VerticalMovement {
 
 #[allow(dead_code)]
 #[non_exhaustive]
-#[derive(Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Action {
     // selection modifications
     Move(Movement),

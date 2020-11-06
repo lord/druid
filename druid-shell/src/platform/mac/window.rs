@@ -58,7 +58,7 @@ use crate::keyboard_types::KeyState;
 use crate::mouse::{Cursor, CursorDesc, MouseButton, MouseButtons, MouseEvent};
 use crate::region::Region;
 use crate::scale::Scale;
-use crate::text_input::{TextInputHandler, TextInputToken};
+use crate::text_input::{TextInputHandler, TextInputToken, TextInputUpdate};
 use crate::window::{FileDialogToken, IdleToken, TimerToken, WinHandler, WindowLevel, WindowState};
 use crate::Error;
 
@@ -1024,6 +1024,31 @@ impl WindowHandle {
             &mut (*(state as *mut ViewState))
         };
         state.active_text_input = active_field;
+    }
+
+    pub fn update_text_input(&self, token: TextInputToken, update: TextInputUpdate) {
+        let mut state = unsafe {
+            let view = self.nsview.load().as_ref().unwrap();
+            let state: *mut c_void = *view.get_ivar("viewState");
+            &mut (*(state as *mut ViewState))
+        };
+        if state.active_text_input != Some(token) {
+            return;
+        }
+        match update {
+            TextInputUpdate::LayoutChanged => {}
+            TextInputUpdate::Reset | TextInputUpdate::SelectionChanged => {
+                unsafe {
+                    let input_context: id = msg_send![*self.nsview.load(), inputContext];
+                    let _: () = msg_send![input_context, discardMarkedText];
+                }
+                // TODO need to pull active text input handler and set marked to None
+            }
+            _ => unsafe {
+                let input_context: id = msg_send![*self.nsview.load(), inputContext];
+                let _: () = msg_send![input_context, invalidateCharacterCoordinates];
+            },
+        }
     }
 
     pub fn open_file(&mut self, options: FileDialogOptions) -> Option<FileDialogToken> {

@@ -28,7 +28,7 @@ use crate::mouse::{Cursor, CursorDesc, MouseEvent};
 use crate::platform::window as platform;
 use crate::region::Region;
 use crate::scale::Scale;
-use crate::text_input::{TextInputToken, TextInputHandler};
+use crate::text_input::{TextInputHandler, TextInputToken, TextInputUpdate};
 use piet_common::PietText;
 
 /// A token that uniquely identifies a running timer.
@@ -338,6 +338,11 @@ impl WindowHandle {
         self.0.set_active_text_input(active_field)
     }
 
+    /// TODO
+    pub fn update_text_input(&self, token: TextInputToken, update: TextInputUpdate) {
+        self.0.update_text_input(token, update)
+    }
+
     /// Schedule a timer.
     ///
     /// This causes a [`WinHandler::timer()`] call at the deadline. The
@@ -598,7 +603,11 @@ pub trait WinHandler {
 
     /// TODO
     #[allow(unused_variables)]
-    fn text_input(&mut self, token: TextInputToken, mutable: bool) -> Option<Box<dyn TextInputHandler>> {
+    fn text_input(
+        &mut self,
+        token: TextInputToken,
+        mutable: bool,
+    ) -> Option<Box<dyn TextInputHandler>> {
         None
     }
 

@@ -14,6 +14,7 @@
 
 #![allow(non_snake_case)]
 
+use objc::rc::WeakPtr;
 use std::ffi::c_void;
 use std::ops::Range;
 use std::os::raw::c_uchar;
@@ -420,6 +421,7 @@ pub extern "C" fn do_command_by_selector(_this: &mut Object, _: Sel, cmd: Sel) {
         "transposeWords:" => Some(Action::TransposeWord),
         "uppercaseWord:" => Some(Action::UppercaseWord),
         "yank:" => None, // TODO
+        "noop:" => None,
         e => {
             eprintln!("unknown text editing command from macos: {}", e);
             None
