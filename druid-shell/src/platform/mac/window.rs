@@ -1027,7 +1027,7 @@ impl WindowHandle {
     }
 
     pub fn update_text_input(&self, token: TextInputToken, update: TextInputUpdate) {
-        let mut state = unsafe {
+        let state = unsafe {
             let view = self.nsview.load().as_ref().unwrap();
             let state: *mut c_void = *view.get_ivar("viewState");
             &mut (*(state as *mut ViewState))
@@ -1036,18 +1036,16 @@ impl WindowHandle {
             return;
         }
         match update {
-            TextInputUpdate::LayoutChanged => {}
-            TextInputUpdate::Reset | TextInputUpdate::SelectionChanged => {
-                unsafe {
-                    let input_context: id = msg_send![*self.nsview.load(), inputContext];
-                    let _: () = msg_send![input_context, discardMarkedText];
-                }
-                // TODO need to pull active text input handler and set marked to None
-            }
-            _ => unsafe {
+            TextInputUpdate::LayoutChanged => unsafe {
                 let input_context: id = msg_send![*self.nsview.load(), inputContext];
                 let _: () = msg_send![input_context, invalidateCharacterCoordinates];
             },
+            TextInputUpdate::Reset | TextInputUpdate::SelectionChanged => unsafe {
+                let input_context: id = msg_send![*self.nsview.load(), inputContext];
+                let _: () = msg_send![input_context, discardMarkedText];
+                // TODO need to pull active text input handler and set marked to None
+            },
+            _ => {}
         }
     }
 
