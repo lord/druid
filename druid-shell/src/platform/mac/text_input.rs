@@ -263,8 +263,8 @@ pub extern "C" fn do_command_by_selector(_this: &mut Object, _: Sel, cmd: Sel) {
         "cancelOperation:" => None, // TODO
         "capitalizeWord:" => Some(Action::CapitalizeWord),
         "centerSelectionInVisibleArea:" => Some(Action::ScrollToSelection), // TODO
-        "changeCaseOfLetter:" => Some(Action::SwapLetterCase),
-        "complete:" => None, // TODO
+        "changeCaseOfLetter:" => None, // text edit doesn't support, so neither will we,
+        "complete:" => None,           // TODO
         "deleteBackward:" => Some(Action::Delete(Movement::Grapheme(Direction::Upstream))),
         "deleteBackwardByDecomposingPreviousCharacter:" => Some(Action::DecomposingBackspace),
         "deleteForward:" => Some(Action::Delete(Movement::Grapheme(Direction::Downstream))),
@@ -349,7 +349,14 @@ pub extern "C" fn do_command_by_selector(_this: &mut Object, _: Sel, cmd: Sel) {
         "moveToBeginningOfLineAndModifySelection:" => {
             Some(Action::MoveSelecting(Movement::Line(Direction::Upstream)))
         }
-        "moveToBeginningOfParagraph:" => Some(Action::Move(Movement::ParagraphStart)),
+        "moveToBeginningOfParagraph:" => {
+            // initially, it may seem like this and moveToEndOfParagraph shouldn't be idempotent. after all,
+            // option-up and option-down aren't idempotent, and those seem to call this method. however, on
+            // further inspection, you can find that option-up first calls `moveBackward` before calling this.
+            // if you send the raw command to TextEdit by editing your `DefaultKeyBinding.dict`, you can find
+            // that this operation is in fact idempotent.
+            Some(Action::Move(Movement::ParagraphStart))
+        }
         "moveToBeginningOfParagraphAndModifySelection:" => {
             Some(Action::MoveSelecting(Movement::ParagraphStart))
         }
@@ -418,7 +425,7 @@ pub extern "C" fn do_command_by_selector(_this: &mut Object, _: Sel, cmd: Sel) {
         "setMark:" => None,      // TODO
         "swapWithMark:" => None, // TODO
         "transpose:" => Some(Action::Transpose),
-        "transposeWords:" => Some(Action::TransposeWord),
+        "transposeWords:" => None, // text edit doesn't support, so neither will we
         "uppercaseWord:" => Some(Action::UppercaseWord),
         "yank:" => None, // TODO
         "noop:" => None,
